@@ -4,3 +4,5 @@ logs
 public
 dist
 /src/generated/prisma
+generated
+prisma/migrations
