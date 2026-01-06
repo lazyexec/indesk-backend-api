@@ -15,7 +15,7 @@ router.post(
 
 router.get(
   "/",
-  auth("clinitian_clinicians"),
+  auth("clinician_clinicians"),
   validate(clinicMemberValidation.getMembers),
   clinicMemberController.getMembers
 );
