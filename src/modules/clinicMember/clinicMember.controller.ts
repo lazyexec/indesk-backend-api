@@ -1,0 +1,76 @@
+import catchAsync from "../../utils/catchAsync";
+import type { Request, Response } from "express";
+import httpStatus from "http-status";
+import clinicMemberService from "./clinicMember.service";
+import response from "../../configs/response";
+import env from "../../configs/env";
+import pick from "../../utils/pick";
+
+const addMember = catchAsync(async (req: Request, res: Response) => {
+  const { clinicId } = req.params;
+  const memberData = req.body;
+
+  const actorId = req.user!.id;
+
+  const result = await clinicMemberService.addClinicMember(
+    actorId!,
+    clinicId,
+    memberData
+  );
+
+  res.status(httpStatus.CREATED).json(
+    response({
+      status: httpStatus.CREATED,
+      message: result.generatedPassword
+        ? env.DEBUG
+          ? "Clinic member added successfully. User account created with temporary password."
+          : "Clinic member added successfully. Temporary password sent via email."
+        : "Clinic member added successfully",
+      data: {
+        member: result.member,
+        ...(result.generatedPassword &&
+          env.DEBUG && {
+            temporaryPassword: result.generatedPassword,
+          }),
+      },
+    })
+  );
+});
+
+const getMembers = catchAsync(async (req: Request, res: Response) => {
+  const { clinicId } = req.params;
+  const userId = req.user?.id;
+  const options = pick(req.query, ["role", "limit", "page", "sort"]);
+  const members = await clinicMemberService.getClinicMembers(
+    clinicId,
+    userId!,
+    options
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinic members retrieved successfully",
+      data: members,
+    })
+  );
+});
+
+const removeMember = catchAsync(async (req: Request, res: Response) => {
+  const { clinicId, memberId } = req.params;
+
+  await clinicMemberService.removeClinicMember(clinicId, memberId);
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinic member removed successfully",
+    })
+  );
+});
+
+export default {
+  addMember,
+  getMembers,
+  removeMember,
+};

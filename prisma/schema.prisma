@@ -1,0 +1,211 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  provider
+  user
+}
+
+enum ClinicRole {
+  clinician
+  admin
+  superAdmin
+}
+
+enum AppointmentStatus {
+  pending
+  accepted
+  rejected
+  scheduled
+}
+
+
+model User {
+  id                 String         @id @default(uuid())
+  email              String         @unique
+  firstName          String?
+  lastName           String?
+  avatar             String?        @default("/uploads/users/user.png")
+  password           String?
+  role               Role           @default(user)
+  oneTimeCode        String?
+  oneTimeCodeExpires DateTime?
+  isEmailVerified    Boolean        @default(false)
+  isResetPassword    Boolean        @default(false)
+  isDeleted          Boolean        @default(false)
+  fcmToken           String?
+  phoneNumber        Int?
+  countryCode        String?
+  // Status
+  isRestricted       Boolean        @default(false)
+  restrictionReason  String?
+  // Business
+  bio                String?
+  // Timestamps
+  isOnline           Boolean        @default(false)
+  lastSeen           DateTime?
+  lastLoginAt        DateTime?      @default(now())
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  // Relations
+  tokens             Token[]
+  ownedClinics       Clinic[]       @relation("ClinicOwner")
+  clinicMemberships  ClinicMember[]
+  appointments       Appointment[]
+  notes              ClinicalNote[]
+  assessments        Assessment[]
+}
+
+model Token {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Clinic {
+  id          String  @id @default(uuid())
+  name        String
+  email       String? @unique
+  phoneNumber String?
+  address     Json?
+  logo        String?
+  // Simple permission system - JSON object with feature flags
+  // Example: { "clients": true, "sessions": true, "billing": false }
+  permissions Json    @default("{}")
+
+  ownerId      String         @unique
+  owner        User           @relation("ClinicOwner", fields: [ownerId], references: [id])
+  // Relations
+  members      ClinicMember[]
+  clients      Client[]
+  appointments Appointment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+
+model ClinicMember {
+  id            String     @id @default(uuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinicId      String
+  clinic        Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  role          ClinicRole
+  availability  Json?
+  specilization String[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([userId, clinicId])
+  @@index([clinicId])
+  @@index([userId])
+}
+
+
+model Client {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String
+  dateOfBirth DateTime
+  gender      String
+  phoneNumber String?
+  address     Json?
+
+  // Medical basics
+  allergies    String[]
+  medications  String[]
+  medicalAlert String?
+
+  // Belongs to clinic
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  // Relations
+  appointments Appointment[]
+  notes        ClinicalNote[]
+  assessments  Assessment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
+  @@index([email])
+}
+
+model Appointment {
+  id          String @id @default(uuid())
+  clientId    String
+  client      Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinicianId String
+  clinician   User   @relation(fields: [clinicianId], references: [id])
+  clinicId    String
+  clinic      Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  startTime DateTime
+  endTime   DateTime
+  status    AppointmentStatus @default(scheduled)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([clinicianId])
+  @@index([startTime])
+}
+
+model ClinicalNote {
+  id       String @id @default(uuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+
+  // Store as JSON - flexibility for MVP
+  note Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([authorId])
+}
+
+model Assessment {
+  id          String @id @default(uuid())
+  clientId    String
+  client      Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinicianId String
+  clinician   User   @relation(fields: [clinicianId], references: [id])
+
+  title String?
+  note  Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([clinicianId])
+}
