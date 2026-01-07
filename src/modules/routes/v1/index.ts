@@ -5,6 +5,7 @@ import settingsRouter from "../../settings/settings.route";
 import clinicRouter from "../../clinic/clinic.route";
 import patientRouter from "../../patient/patient.route";
 import clinicMemberRouter from "../../clinicMember/clinicMember.route";
+import sessionRouter from "../../session/session.route";
 
 const mainRouter: Router = express.Router();
 
@@ -37,6 +38,10 @@ const routes: routeObjects[] = [
   {
     path: "/clinicMember",
     route: clinicMemberRouter,
+  },
+  {
+    path: "/session",
+    route: sessionRouter,
   },
 ];
 

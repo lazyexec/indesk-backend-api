@@ -17,18 +17,7 @@ const pick = <T extends object, K extends keyof T>(
   //    'Object.hasOwn' specifically checks for direct properties, not inherited ones.
   return keys.reduce((obj, key) => {
     if (Object.hasOwn(object, key)) {
-      if (key === "sort" && typeof object[key] === "string") {
-        const [field, order] = (object[key] as string).split(" ");
-        if (field) {
-          const parsedOrder =
-            parseInt(order as string) || (order === "desc" ? -1 : 1);
-          Object.assign(obj, {
-            [key]: { [field]: parsedOrder },
-          });
-        }
-      } else {
-        obj[key] = object[key];
-      }
+      obj[key] = object[key];
     }
     return obj;
   }, {} as Pick<T, K>);
