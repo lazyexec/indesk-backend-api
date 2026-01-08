@@ -31,7 +31,7 @@ const addClinicMember = async (
     ...userData
   } = memberData;
   // Verify clinic exists
-  const clinic = await prisma.clinic.findUnique({
+  const clinic = await prisma.clinic.findFirst({
     where: { id: clinicId },
   });
 
@@ -40,12 +40,10 @@ const addClinicMember = async (
   }
 
   // Verify actor permissions
-  const actorMember = await prisma.clinicMember.findUnique({
+  const actorMember = await prisma.clinicMember.findFirst({
     where: {
-      userId_clinicId: {
-        userId: actorId,
-        clinicId: clinicId,
-      },
+      clinicId: clinicId,
+      userId: actorId,
     },
   });
 
@@ -77,7 +75,7 @@ const addClinicMember = async (
   }
 
   // Check if user exists
-  let user = await prisma.user.findUnique({
+  let user = await prisma.user.findFirst({
     where: { email: memberEmail },
   });
 
@@ -107,12 +105,10 @@ const addClinicMember = async (
   }
 
   // Check if already a member
-  const existingMembership = await prisma.clinicMember.findUnique({
+  const existingMembership = await prisma.clinicMember.findFirst({
     where: {
-      userId_clinicId: {
-        userId: user.id,
-        clinicId: clinicId,
-      },
+      clinicId: clinicId,
+      userId: user.id,
     },
   });
 
@@ -126,11 +122,15 @@ const addClinicMember = async (
   // Create clinic membership
   const clinicMember = await prisma.clinicMember.create({
     data: {
-      userId: user.id,
-      clinicId: clinicId,
       role: role,
-      availability: availability || null,
+      availability: availability || [],
       specilization: specilization || [],
+      clinic: {
+        connect: { id: clinicId },
+      },
+      user: {
+        connect: { id: user.id },
+      },
     },
     include: {
       user: {
@@ -155,12 +155,11 @@ const getClinicMembers = async (
   userId: string,
   options: any
 ) => {
-  const clinicMember = await prisma.clinicMember.findUnique({
+  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
+  const clinicMember = await prisma.clinicMember.findFirst({
     where: {
-      userId_clinicId: {
-        userId,
-        clinicId,
-      },
+      clinicId: clinicId,
+      userId: userId,
     },
   });
 
@@ -183,27 +182,42 @@ const getClinicMembers = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
   }
 
-  const members = await prisma.clinicMember.findMany({
-    where: filter,
-    include: {
-      user: {
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          avatar: true,
+  const [members, totalDocs] = await Promise.all([
+    prisma.clinicMember.findMany({
+      where: {
+        clinicId: clinicId,
+        role: filter.role,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
         },
       },
-    },
-    take: options.limit,
-    skip: (options.page - 1) * options.limit,
-    orderBy: {
-      createdAt: options.sort === "createdAt_desc" ? "desc" : "asc",
-    },
-  });
+      take: Number(limit),
+      skip: (Number(page) - 1) * Number(limit),
+      orderBy: sort,
+    }),
+    prisma.clinicMember.count({
+      where: {
+        clinicId: clinicId,
+        role: filter.role,
+      },
+    }),
+  ]);
 
-  return members;
+  return {
+    docs: members,
+    totalDocs,
+    limit: Number(limit),
+    page: Number(page),
+    totalPages: Math.ceil(totalDocs / Number(limit)),
+  };
 };
 
 const removeClinicMember = async (clinicId: string, memberId: string) => {

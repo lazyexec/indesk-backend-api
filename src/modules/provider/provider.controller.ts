@@ -1,7 +1,7 @@
 import catchAsync from "../../utils/catchAsync";
 import { Request, Response } from "express";
 import httpStatus from "http-status";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import clinicService from "../clinic/clinic.service";
 
 const createClinic = catchAsync(async (req: Request, res: Response) => {

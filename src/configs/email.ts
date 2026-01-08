@@ -16,6 +16,9 @@ transporter
   });
 
 const sendMail = async (options: nodemailer.SendMailOptions) => {
+  if (env.DEBUG) {
+    return;
+  }
   try {
     await transporter.sendMail({
       from: env.email.from,

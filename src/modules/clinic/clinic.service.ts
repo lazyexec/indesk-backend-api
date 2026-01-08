@@ -5,6 +5,7 @@ import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 import fs from "../../utils/fs";
 import env from "../../configs/env";
+import { Prisma } from "../../../generated/prisma/client";
 
 const createClinic = async (
   data: Partial<IClinic> & { ownerEmail?: string }
@@ -22,35 +23,48 @@ const createClinic = async (
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found");
   }
+  let clinic;
+  try {
+    clinic = await prisma.clinic.create({
+      data: {
+        name: name!,
+        ownerId: user.id,
+        email,
+        phoneNumber,
+        address,
+        members: {
+          create: {
+            userId: user.id,
+            role: "superAdmin",
+          },
+        },
+        permissions: permissions,
+        logo,
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        members: true, // Include members to confirm creation
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        throw new ApiError(
+          httpStatus.CONFLICT,
+          "Clinic with this email already exists"
+        );
+      }
+    }
+    throw new ApiError(httpStatus.BAD_REQUEST, "Unknown error occurred!");
+  }
 
-  const clinic = await prisma.clinic.create({
-    data: {
-      name: name!,
-      ownerId: user.id,
-      email,
-      phoneNumber,
-      address,
-      members: {
-        create: {
-          userId: user.id,
-          role: "superAdmin",
-        },
-      },
-      permissions: permissions,
-      logo,
-    },
-    include: {
-      owner: {
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-        },
-      },
-      members: true, // Include members to confirm creation
-    },
-  });
   return clinic;
 };
 
@@ -134,25 +148,47 @@ const deleteClinic = async (id: string) => {
 };
 
 const getClinics = async (options: any) => {
-  const { limit = 10, page = 1, sort = "createdAt_desc" } = options;
-  const clinics = await prisma.clinic.findMany({
-    take: limit,
-    skip: (page - 1) * limit,
-    orderBy: {
-      createdAt: sort === "createdAt_desc" ? "desc" : "asc",
-    },
-    include: {
-      owner: {
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
+  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+
+  const [clinics, totalDocs] = await Promise.all([
+    prisma.clinic.findMany({
+      take,
+      skip,
+      orderBy: sort,
+      include: {
+        owner: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
         },
       },
+    }),
+    prisma.clinic.count(),
+  ]);
+
+  return {
+    docs: clinics,
+    totalDocs,
+    limit: take,
+    page: Number(page),
+    totalPages: Math.ceil(totalDocs / take),
+  };
+};
+
+const getClinicIdByUserId = async (userId: string) => {
+  const clinic = await prisma.clinicMember.findFirst({
+    where: { userId },
+    select: {
+      clinicId: true,
     },
   });
-  return clinics;
+
+  return clinic?.clinicId;
 };
 
 export default {
@@ -161,4 +197,5 @@ export default {
   updateClinic,
   deleteClinic,
   getClinics,
+  getClinicIdByUserId,
 };

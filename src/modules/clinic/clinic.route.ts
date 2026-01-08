@@ -35,7 +35,7 @@ router.get(
 
 router.put(
   "/:clinicId",
-  auth("superAdmin", "admin"),
+  auth("commonAdmin"),
   validate(clinicValidation.updateClinic),
   upload,
   clinicController.updateClinic
@@ -43,14 +43,14 @@ router.put(
 
 router.patch(
   "/:clinicId/permissions",
-  auth("superAdmin", "admin"),
+  auth("commonAdmin"),
   validate(clinicValidation.updatePermissions),
   clinicController.updatePermissions
 );
 
 router.delete(
   "/:clinicId",
-  auth("superAdmin", "admin"),
+  auth("commonAdmin"),
   validate(clinicValidation.deleteClinic),
   clinicController.deleteClinic
 );

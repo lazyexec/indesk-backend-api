@@ -2,7 +2,7 @@ import catchAsync from "../../utils/catchAsync";
 import type { Request, Response } from "express";
 import httpStatus from "http-status";
 import clinicService from "./clinic.service";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import ApiError from "../../utils/ApiError";
 import env from "../../configs/env";
 import fs from "../../utils/fs";

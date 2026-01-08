@@ -41,7 +41,7 @@ export default function userUploadMiddleware(UPLOADS_FOLDER: string) {
       const allowed: string[] | undefined = allowedTypes[field];
 
       if (!allowed) {
-        throw new ApiError(httpStatus.BAD_REQUEST, `Invalid field: ${field}`);
+        throw new ApiError(httpStatus.BAD_REQUEST, `Invalid Type: ${field}`);
       }
 
       const isValid = allowed.some((t: string) =>

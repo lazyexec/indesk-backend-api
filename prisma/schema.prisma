@@ -26,9 +26,34 @@ enum ClinicRole {
 
 enum AppointmentStatus {
   pending
-  accepted
-  rejected
+  completed
+  cancelled
   scheduled
+}
+
+enum MeetingType {
+  in_person
+  zoom
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum IntegrationType {
+  google_calendar
+  stripe
+  xero
+  mailchimp
+  whatsapp
+  zoom
+}
+
+enum IntegrationStatus {
+  connected
+  disconnected
 }
 
 model User {
@@ -62,10 +87,11 @@ model User {
   tokens             Token[]
   ownedClinics       Clinic[]       @relation("ClinicOwner")
   clinicMemberships  ClinicMember[]
-  appointments       Appointment[]
+  appointments       Appointment[]  @relation("AppointmentClinician")
+  addedAppointments  Appointment[]  @relation("AppointmentAddedBy")
   notes              ClinicalNote[]
   assessments        Assessment[]
-  sessions           Session[]
+  addedClients       Client[]       @relation("ClientAddedBy")
 }
 
 model Token {
@@ -102,7 +128,23 @@ model Clinic {
   updatedAt DateTime  @updatedAt
   sessions  Session[]
 
+  integrations Integration[]
+
   @@index([ownerId])
+}
+
+model Integration {
+  id        String            @id @default(uuid())
+  clinicId  String
+  clinic    Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  type      IntegrationType
+  status    IntegrationStatus @default(disconnected)
+  config    Json? // Stores credentials, IDs, tokens, etc.
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([clinicId, type])
+  @@index([clinicId])
 }
 
 model ClinicMember {
@@ -111,9 +153,9 @@ model ClinicMember {
   user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   clinicId      String
   clinic        Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  role          ClinicRole
-  availability  Json?
-  specilization String[]
+  role          ClinicRole @default(clinician)
+  availability  String[]   @default([])
+  specilization String[]   @default([])
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -123,24 +165,21 @@ model ClinicMember {
 }
 
 model Client {
-  id          String   @id @default(uuid())
-  firstName   String
-  lastName    String
-  email       String
-  dateOfBirth DateTime
-  gender      String
-  phoneNumber String?
-  address     Json?
-
-  // Medical basics
-  allergies    String[]
-  medications  String[]
-  medicalAlert String?
-
+  id           String         @id @default(uuid())
+  firstName    String
+  lastName     String
+  email        String
+  dateOfBirth  DateTime
+  gender       Gender         @default(male)
+  phoneNumber  String?
+  address      Json?
+  // Notes
+  note         String?
   // Belongs to clinic
-  clinicId String
-  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-
+  clinicId     String
+  clinic       Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  addedBy      String
+  addedByUser  User           @relation("ClientAddedBy", fields: [addedBy], references: [id], onDelete: Cascade)
   // Relations
   appointments Appointment[]
   notes        ClinicalNote[]
@@ -154,12 +193,10 @@ model Client {
 }
 
 model Session {
-  id          String @id @default(uuid())
-  clinicianId String
-  clinician   User   @relation(fields: [clinicianId], references: [id])
-  clinicId    String
-  clinic      Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  name        String
+  id       String @id @default(uuid())
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  name     String
 
   duration     Int // in minutes
   description  String?
@@ -170,29 +207,48 @@ model Session {
   updatedAt    DateTime      @updatedAt
   appointments Appointment[]
 
-  @@index([clinicianId])
   @@index([clinicId])
 }
 
 model Appointment {
-  id          String            @id @default(uuid())
-  clientId    String
-  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clinicianId String
-  clinician   User              @relation(fields: [clinicianId], references: [id])
-  clinicId    String
-  clinic      Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  sessionId   String
-  session     Session           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  status      AppointmentStatus @default(scheduled)
-  notes       String?
-  time        DateTime
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id String @id @default(uuid())
 
-  @@index([clientId])
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  clinicianId String
+  clinician   User   @relation("AppointmentClinician", fields: [clinicianId], references: [id])
+
+  addedBy     String
+  addedByUser User   @relation("AppointmentAddedBy", fields: [addedBy], references: [id])
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id])
+
+  status AppointmentStatus @default(scheduled)
+
+  startTime DateTime
+  endTime   DateTime
+
+  note String?
+
+  // Online meeting (Zoom)
+  meetingType   MeetingType @default(in_person) // IN_PERSON | ZOOM
+  zoomJoinUrl   String?
+  zoomStartUrl  String?
+  zoomMeetingId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clinicId])
   @@index([clinicianId])
-  @@index([time])
+  @@index([addedBy])
+  @@index([clientId])
+  @@index([startTime])
 }
 
 model ClinicalNote {

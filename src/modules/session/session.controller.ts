@@ -2,12 +2,11 @@ import catchAsync from "../../utils/catchAsync";
 import type { Request, Response } from "express";
 import httpStatus from "http-status";
 import sessionService from "./session.service";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import pick from "../../utils/pick";
 
 const createSession = catchAsync(async (req: Request, res: Response) => {
-  const userId: string = req.user?.id!;
-  const session = await sessionService.createSession(userId, req.body);
+  const session = await sessionService.createSession(req.body);
   res.status(httpStatus.CREATED).json(
     response({
       status: httpStatus.CREATED,
@@ -18,7 +17,7 @@ const createSession = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getSessions = catchAsync(async (req: Request, res: Response) => {
-  const filter = pick(req.query, ["clinicId", "clinicianId"]);
+  const filter = pick(req.query, ["clinicId"]);
   const options = pick(req.query, ["limit", "page", "sort"]);
   const result = await sessionService.getSessions(filter, options);
   res.status(httpStatus.OK).json(

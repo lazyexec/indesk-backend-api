@@ -3,27 +3,35 @@ import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 
-const createSession = async (userId: string, sessionBody: ISession): Promise<any> => {
+const createSession = async (sessionBody: any): Promise<any> => {
   const session = await prisma.session.create({
-    data: {
-      ...sessionBody,
-      clinicianId: userId,
-    },
+    data: sessionBody,
   });
   return session;
 };
 
 const getSessions = async (filter: any, options: any) => {
-  const { limit = 10, page = 1, sort = "createdAt_desc" } = options;
-  const sessions = await prisma.session.findMany({
-    where: filter,
-    take: Number(limit),
-    skip: (Number(page) - 1) * Number(limit),
-    orderBy: {
-      [sort.split("_")[0]]: sort.split("_")[1] === "desc" ? "desc" : "asc",
-    },
-  });
-  return sessions;
+  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+
+  const [sessions, totalDocs] = await Promise.all([
+    prisma.session.findMany({
+      where: filter,
+      take,
+      skip,
+      orderBy: sort,
+    }),
+    prisma.session.count({ where: filter }),
+  ]);
+
+  return {
+    docs: sessions,
+    totalDocs,
+    limit: take,
+    page: Number(page),
+    totalPages: Math.ceil(totalDocs / take),
+  };
 };
 
 const getSessionById = async (id: string) => {
@@ -36,7 +44,7 @@ const getSessionById = async (id: string) => {
   return session;
 };
 
-const updateSession = async (id: string, updateBody: ISession) => {
+const updateSession = async (id: string, updateBody: any) => {
   await getSessionById(id);
   const updatedSession = await prisma.session.update({
     where: { id },

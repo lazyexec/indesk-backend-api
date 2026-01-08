@@ -1,7 +1,7 @@
 import catchAsync from "../../utils/catchAsync";
 import type { Request, Response } from "express";
 import httpStatus from "http-status";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import stripe from "../../configs/stripe";
 import ApiError from "../../utils/ApiError";
 import stripeService from "./stripe.service";
@@ -33,5 +33,5 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
 });
 
 export default {
-  webhook
+  webhook,
 };

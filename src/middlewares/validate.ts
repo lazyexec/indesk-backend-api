@@ -17,11 +17,9 @@ const validate =
         const s = schema[part];
         if (!s) continue;
 
-        // Validate and apply default values
         const data = (req as any)[part] || {};
         const { error, value } = s.validate(data, {
-          abortEarly: false,
-          stripUnknown: true,
+          abortEarly: true,
         });
 
         if (error) {
@@ -30,7 +28,6 @@ const validate =
           );
         }
 
-        // Assign validated values (including defaults for query and params)
         if (part === "query" || part === "params") {
           Object.assign((req as any)[part], value);
         } else {

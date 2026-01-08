@@ -3,9 +3,13 @@ import authRouter from "../../auth/auth.route";
 import userRouter from "../../user/user.route";
 import settingsRouter from "../../settings/settings.route";
 import clinicRouter from "../../clinic/clinic.route";
-import patientRouter from "../../patient/patient.route";
 import clinicMemberRouter from "../../clinicMember/clinicMember.route";
 import sessionRouter from "../../session/session.route";
+import integrationRouter from "../../integration/integration.route";
+import clientRouter from "../../client/client.route";
+import appointmentRouter from "../../appointment/appointment.route";
+import stripeRouter from "../../stripe/stripe.route";
+import providerRouter from "../../provider/provider.route";
 
 const mainRouter: Router = express.Router();
 
@@ -32,16 +36,32 @@ const routes: routeObjects[] = [
     route: clinicRouter,
   },
   {
-    path: "/patient",
-    route: patientRouter,
-  },
-  {
     path: "/clinicMember",
     route: clinicMemberRouter,
   },
   {
     path: "/session",
     route: sessionRouter,
+  },
+  {
+    path: "/integration",
+    route: integrationRouter,
+  },
+  {
+    path: "/client",
+    route: clientRouter,
+  },
+  {
+    path: "/appointment",
+    route: appointmentRouter,
+  },
+  {
+    path: "/stripe",
+    route: stripeRouter,
+  },
+  {
+    path: "/provider",
+    route: providerRouter,
   },
 ];
 

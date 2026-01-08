@@ -1,19 +1,21 @@
 import httpStatus from "http-status";
 import catchAsync from "../../utils/catchAsync";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import { settingsService } from "./settings.service";
 import { Request, Response } from "express";
 
-const modifyTermsAndCondition = catchAsync(async (req: Request, res: Response) => {
-  const data = await settingsService.modifyTermsAndCondition(req.body);
-  res.status(httpStatus.CREATED).json(
-    response({
-      message: "Terms and Conditions Updated",
-      status: httpStatus.CREATED,
-      data,
-    })
-  );
-});
+const modifyTermsAndCondition = catchAsync(
+  async (req: Request, res: Response) => {
+    const data = await settingsService.modifyTermsAndCondition(req.body);
+    res.status(httpStatus.CREATED).json(
+      response({
+        message: "Terms and Conditions Updated",
+        status: httpStatus.CREATED,
+        data,
+      })
+    );
+  }
+);
 
 const getTermsAndCondition = catchAsync(async (req: Request, res: Response) => {
   const data = await settingsService.getTermsAndCondition();

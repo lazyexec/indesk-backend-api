@@ -43,8 +43,6 @@ const documentTypes = [
 
 const allowedTypes: AllowedTypes = {
   avatar: avatarTypes,
-  message: messageTypes,
-  content: contentTypes,
-  documents: documentTypes,
+  logo: avatarTypes,
 };
 export default allowedTypes;

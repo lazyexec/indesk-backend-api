@@ -5,45 +5,50 @@ import Joi from "joi";
 configDotenv();
 // }
 
-const validator = Joi.object({
-  PORT: Joi.number().default(3000),
-  BACKEND_IP: Joi.string().default("localhost"),
-  SOCKET_PORT: Joi.number().default(3001), // This is for only testing purpose (Development)
-  DATABASE_URL: Joi.string().optional(),
-  NODE_ENV: Joi.string()
-    .valid("development", "production")
-    .default("development"),
-  JWT_SECRET: Joi.string().required().description("JWT Secret key"),
-  JWT_ACCESS_EXPIRY: Joi.string()
-    .default("3d")
-    .description("JWT Access Expiry time"),
-  JWT_REFRESH_EXPIRY: Joi.string()
-    .default("30d")
-    .description("JWT Refresh Expiry time"),
-  SMTP_HOST: Joi.string().required().description("SMTP Host"),
-  SMTP_PORT: Joi.number().required().description("SMTP Port"),
-  SMTP_USERNAME: Joi.string().required().description("SMTP Username"),
-  SMTP_PASSWORD: Joi.string().required().description("SMTP Password"),
-  EMAIL_FROM: Joi.string().email().required().description("Email From Address"),
-  STRIPE_SECRET_KEY: Joi.string().required().description("Stripe Secret Key"),
-  STRIPE_WEBHOOK_SECRET: Joi.string()
-    .required()
-    .description("Stripe Webhook Secret Key"),
-  // URLS
-  FRONTEND_URL: Joi.string().default("*").description("Frontend URL"),
-  BACKEND_URL: Joi.string()
-    .default(`http://${process.env.BACKEND_IP}:${process.env.PORT}`)
-    .description("Frontend URL"),
-  FIREBASE_PROJECT_ID: Joi.string()
-    .required()
-    .description("Firebase project Id"),
-  FIREBASE_PRIVATE_KEY: Joi.string()
-    .required()
-    .description("Firebase Private Key"),
-  FIREBASE_CLIENT_EMAIL: Joi.string()
-    .required()
-    .description("Firebase Client Email"),
-}).unknown();
+const validator = Joi.object()
+  .keys({
+    PORT: Joi.number().default(3000),
+    BACKEND_IP: Joi.string().default("localhost"),
+    SOCKET_PORT: Joi.number().default(3001), // This is for only testing purpose (Development)
+    DATABASE_URL: Joi.string().optional(),
+    NODE_ENV: Joi.string()
+      .valid("development", "production")
+      .default("development"),
+    JWT_SECRET: Joi.string().required().description("JWT Secret key"),
+    JWT_ACCESS_EXPIRY: Joi.string()
+      .default("3d")
+      .description("JWT Access Expiry time"),
+    JWT_REFRESH_EXPIRY: Joi.string()
+      .default("30d")
+      .description("JWT Refresh Expiry time"),
+    SMTP_HOST: Joi.string().required().description("SMTP Host"),
+    SMTP_PORT: Joi.number().required().description("SMTP Port"),
+    SMTP_USERNAME: Joi.string().required().description("SMTP Username"),
+    SMTP_PASSWORD: Joi.string().required().description("SMTP Password"),
+    EMAIL_FROM: Joi.string()
+      .email()
+      .required()
+      .description("Email From Address"),
+    STRIPE_SECRET_KEY: Joi.string().required().description("Stripe Secret Key"),
+    STRIPE_WEBHOOK_SECRET: Joi.string()
+      .required()
+      .description("Stripe Webhook Secret Key"),
+    // URLS
+    FRONTEND_URL: Joi.string().default("*").description("Frontend URL"),
+    BACKEND_URL: Joi.string()
+      .default(`http://${process.env.BACKEND_IP}:${process.env.PORT}`)
+      .description("Frontend URL"),
+    FIREBASE_PROJECT_ID: Joi.string()
+      .required()
+      .description("Firebase project Id"),
+    FIREBASE_PRIVATE_KEY: Joi.string()
+      .required()
+      .description("Firebase Private Key"),
+    FIREBASE_CLIENT_EMAIL: Joi.string()
+      .required()
+      .description("Firebase Client Email"),
+  })
+  .unknown();
 
 const { value, error } = validator.validate(process.env);
 

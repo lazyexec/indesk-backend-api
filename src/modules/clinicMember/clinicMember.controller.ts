@@ -2,19 +2,18 @@ import catchAsync from "../../utils/catchAsync";
 import type { Request, Response } from "express";
 import httpStatus from "http-status";
 import clinicMemberService from "./clinicMember.service";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import env from "../../configs/env";
 import pick from "../../utils/pick";
+import clinicService from "../clinic/clinic.service";
 
 const addMember = catchAsync(async (req: Request, res: Response) => {
-  const { clinicId } = req.params;
   const memberData = req.body;
-
   const actorId = req.user!.id;
-
+  const clinicId = await clinicService.getClinicIdByUserId(actorId!);
   const result = await clinicMemberService.addClinicMember(
     actorId!,
-    clinicId,
+    clinicId!,
     memberData
   );
 
@@ -38,11 +37,11 @@ const addMember = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMembers = catchAsync(async (req: Request, res: Response) => {
-  const { clinicId } = req.params;
   const userId = req.user?.id;
+  const clinicId = await clinicService.getClinicIdByUserId(userId!);
   const options = pick(req.query, ["role", "limit", "page", "sort"]);
   const members = await clinicMemberService.getClinicMembers(
-    clinicId,
+    clinicId!,
     userId!,
     options
   );

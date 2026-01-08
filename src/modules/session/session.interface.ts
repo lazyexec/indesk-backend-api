@@ -13,7 +13,6 @@ export interface ISession {
   price: number;
   color?: string;
   reminders?: any;
-  clinicianId: string;
   clinicId: string;
   owner?: IUser;
   // Relations - using `any` for now or better types if available

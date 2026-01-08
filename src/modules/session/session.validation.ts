@@ -20,7 +20,6 @@ const createSession = {
 const getSessions = {
   query: Joi.object().keys({
     clinicId: Joi.string().uuid().optional(),
-    clinicianId: Joi.string().uuid().optional(),
     limit: Joi.number().integer().optional(),
     page: Joi.number().integer().optional(),
     sort: Joi.string().optional(),
@@ -50,7 +49,6 @@ const updateSession = {
           email: Joi.boolean().optional().default(false),
         })
         .optional(),
-      clinicianId: Joi.string().uuid().optional(),
     })
     .min(1),
 };

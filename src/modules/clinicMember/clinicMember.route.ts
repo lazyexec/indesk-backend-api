@@ -7,21 +7,21 @@ import auth from "../../middlewares/auth";
 const router: Router = express.Router({ mergeParams: true });
 
 router.post(
-  "/:clinicId",
-  auth("common"),
+  "/add/member",
+  auth("commonAdmin"),
   validate(clinicMemberValidation.addMember),
   clinicMemberController.addMember
 );
 
 router.get(
-  "/",
-  auth("clinician_clinicians"),
+  "/get/members",
+  auth("clinician_clinicians", "commonAdmin"),
   validate(clinicMemberValidation.getMembers),
   clinicMemberController.getMembers
 );
 
 router.delete(
-  "/:memberId",
+  "/remove/member",
   auth("common"),
   validate(clinicMemberValidation.removeMember),
   clinicMemberController.removeMember

@@ -63,11 +63,8 @@ const queryAllUsers = async (filter: any, options: object) => {
     if (key === "email" || key === "firstName" || key === "lastName") {
       query[key] = { contains: filter[key], mode: "insensitive" };
     } else if (key === "role") {
-      // Assuming Filter passes string, need to match Enum
-      // Prisma requires exact match for Enums usually
       query[key] = filter[key] as string;
     } else if (key === "name") {
-      // Map 'name' to firstName OR lastName
       query["OR"] = [
         { firstName: { contains: filter[key], mode: "insensitive" } },
         { lastName: { contains: filter[key], mode: "insensitive" } },
@@ -77,11 +74,27 @@ const queryAllUsers = async (filter: any, options: object) => {
     }
   }
 
-  const users = (await prisma.user.findMany({
-    where: query,
-    ...options,
-  })) as unknown as IUser[];
-  return users;
+  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options as any;
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+
+  const [users, totalDocs] = await Promise.all([
+    prisma.user.findMany({
+      where: query,
+      take,
+      skip,
+      orderBy: sort,
+    }),
+    prisma.user.count({ where: query }),
+  ]);
+
+  return {
+    docs: users as unknown as IUser[],
+    totalDocs,
+    limit: take,
+    page: Number(page),
+    totalPages: Math.ceil(totalDocs / take),
+  };
 };
 
 const restrictUser = async (userId: string, reason: string) => {
@@ -165,7 +178,6 @@ export default {
   getUserByEmail,
   updateUser,
   getUserById,
-  // Admin Functions
   queryAllUsers,
   restrictUser,
   unRestrictUser,

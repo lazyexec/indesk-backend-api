@@ -2,9 +2,6 @@ import Joi from "joi";
 
 // POST /clinics/:clinicId/members - Add clinic member
 const addMember = {
-  params: Joi.object().keys({
-    clinicId: Joi.string().uuid().required(),
-  }),
   body: Joi.object().keys({
     email: Joi.string().email().required(),
     role: Joi.string().valid("admin", "clinician").required(),
@@ -20,9 +17,6 @@ const addMember = {
 
 // GET /clinics/:clinicId/members - Get all clinic members
 const getMembers = {
-  params: Joi.object().keys({
-    clinicId: Joi.string().uuid().required(),
-  }),
   query: Joi.object().keys({
     role: Joi.string().valid("admin", "clinician").optional(),
     limit: Joi.number().optional(),

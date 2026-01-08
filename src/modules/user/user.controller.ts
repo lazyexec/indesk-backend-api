@@ -3,7 +3,7 @@ import type { Request, Response } from "express";
 import userService from "./user.service";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import pick from "../../utils/pick";
 
 const getProfile = catchAsync(async (req: Request, res: Response) => {

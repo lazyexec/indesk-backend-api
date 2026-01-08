@@ -5,7 +5,7 @@ import httpStatus from "http-status";
 import userService from "../user/user.service";
 import authService from "./auth.service";
 import ApiError from "../../utils/ApiError";
-import response from "../../configs/response";
+import response from "../../utils/response";
 import tokenService from "../token/token.service";
 import { IUser } from "../user/user.interface";
 
