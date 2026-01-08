@@ -1,12 +1,14 @@
+import httpStatus from "http-status";
+
 class ApiError extends Error {
-  status: number;
+  status: keyof typeof httpStatus;
   isOperational: boolean;
 
   constructor(
-    status: number,
+    status: keyof typeof httpStatus,
     message: string,
-    isOperational = true,
-    stack = ""
+    isOperational: boolean = true,
+    stack: string = ""
   ) {
     super(message);
 
