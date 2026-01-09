@@ -10,6 +10,7 @@ import clientRouter from "../../client/client.route";
 import appointmentRouter from "../../appointment/appointment.route";
 import stripeRouter from "../../stripe/stripe.route";
 import providerRouter from "../../provider/provider.route";
+import assessmentRouter from "../../assessment/assessment.route";
 
 const mainRouter: Router = express.Router();
 
@@ -62,6 +63,10 @@ const routes: routeObjects[] = [
   {
     path: "/provider",
     route: providerRouter,
+  },
+  {
+    path: "/assessment",
+    route: assessmentRouter,
   },
 ];
 

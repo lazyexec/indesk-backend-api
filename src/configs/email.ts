@@ -77,10 +77,36 @@ const sendWelcomeEmail = async (to: string, token: string) => {
   logger.info(`Sending welcome email to ${to} with token ${token}`);
 };
 
+const sendAssessmentEmail = async (
+  to: string,
+  assessmentTitle: string,
+  shareUrl: string,
+  customMessage?: string
+) => {
+  const emailText = `
+Hello,
+
+${customMessage || `You have been assigned an assessment: "${assessmentTitle}"`}
+
+Please complete the assessment by clicking the link below:
+${shareUrl}
+
+${customMessage ? "" : "Thank you!"}
+  `;
+
+  await sendMail({
+    to,
+    subject: `Assessment: ${assessmentTitle}`,
+    text: emailText,
+  });
+  logger.info(`Sending assessment email to ${to} for assessment: ${assessmentTitle}`);
+};
+
 export default {
   sendRegistrationEmail,
   sendResetPasswordEmail,
   sendRestrictionEmail,
   sendUnrestrictedEmail,
   sendWelcomeEmail,
+  sendAssessmentEmail,
 };

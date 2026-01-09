@@ -2,6 +2,7 @@ import { IAppointment } from "./appointment.interface";
 import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
+import { randomBytes } from "crypto";
 
 interface ICreateAppointment {
   sessionId: string;
@@ -91,6 +92,9 @@ const createAppointment = async (
     throw new ApiError(httpStatus.BAD_REQUEST, "Time slot is not available");
   }
 
+  // Generate payment token for public access
+  const paymentToken = randomBytes(32).toString("hex");
+
   // Create appointment
   const appointment = await prisma.appointment.create({
     data: {
@@ -103,6 +107,32 @@ const createAppointment = async (
       meetingType: meetingType,
       startTime: startTime,
       endTime: endTime,
+      paymentToken,
+      paymentStatus: "pending",
+      paymentAmount: session.price,
+    },
+    include: {
+      session: {
+        select: {
+          name: true,
+          price: true,
+          duration: true,
+        },
+      },
+      client: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -139,7 +169,182 @@ const getClientAppointments = async (userId: string, options: any) => {
   };
 };
 
+/**
+ * Get appointment by payment token (public access)
+ * @param {string} paymentToken
+ * @returns {Promise<any>}
+ */
+const getAppointmentByToken = async (paymentToken: string) => {
+  const appointment = await prisma.appointment.findUnique({
+    where: { paymentToken },
+    include: {
+      session: {
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          duration: true,
+          description: true,
+        },
+      },
+      client: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+        },
+      },
+      clinician: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          avatar: true,
+        },
+      },
+    },
+  });
+
+  if (!appointment) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Appointment not found");
+  }
+
+  return appointment;
+};
+
+/**
+ * Get appointment by ID (for authenticated users)
+ * @param {string} appointmentId
+ * @returns {Promise<any>}
+ */
+const getAppointmentById = async (appointmentId: string) => {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    include: {
+      session: {
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          duration: true,
+          description: true,
+        },
+      },
+      client: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+        },
+      },
+      clinician: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          avatar: true,
+        },
+      },
+    },
+  });
+
+  if (!appointment) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Appointment not found");
+  }
+
+  return appointment;
+};
+
+/**
+ * Update appointment payment status
+ * @param {string} appointmentId
+ * @param {string} paymentStatus
+ * @param {string} stripeSessionId
+ * @returns {Promise<any>}
+ */
+const updateAppointmentPayment = async (
+  appointmentId: string,
+  paymentStatus: string,
+  stripeSessionId?: string
+) => {
+  const updateData: any = {
+    paymentStatus,
+  };
+
+  if (stripeSessionId) {
+    updateData.stripeSessionId = stripeSessionId;
+  }
+
+  if (paymentStatus === "paid") {
+    updateData.paidAt = new Date();
+  }
+
+  const appointment = await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: updateData,
+    include: {
+      session: {
+        select: {
+          name: true,
+          price: true,
+        },
+      },
+      client: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return appointment;
+};
+
+/**
+ * Update appointment stripe session ID
+ * @param {string} appointmentId
+ * @param {string} stripeSessionId
+ * @returns {Promise<any>}
+ */
+const updateAppointmentStripeSession = async (
+  appointmentId: string,
+  stripeSessionId: string
+) => {
+  const appointment = await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: { stripeSessionId },
+  });
+
+  return appointment;
+};
+
 export default {
   createAppointment,
   getClientAppointments,
+  getAppointmentByToken,
+  getAppointmentById,
+  updateAppointmentPayment,
+  updateAppointmentStripeSession,
 };

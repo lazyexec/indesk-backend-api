@@ -18,7 +18,29 @@ const getClientAppointments = {
   }),
 };
 
+const getAppointmentByToken = {
+  params: Joi.object().keys({
+    token: Joi.string().required(),
+  }),
+};
+
+const createPaymentSession = {
+  body: Joi.object().keys({
+    appointmentId: Joi.string().uuid().required(),
+    token: Joi.string().required(),
+  }),
+};
+
+const getAppointmentById = {
+  params: Joi.object().keys({
+    appointmentId: Joi.string().uuid().required(),
+  }),
+};
+
 export default {
   createAppointment,
   getClientAppointments,
+  getAppointmentByToken,
+  createPaymentSession,
+  getAppointmentById,
 };

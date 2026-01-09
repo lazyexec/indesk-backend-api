@@ -8,10 +8,14 @@ const addMember = {
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     phoneNumber: Joi.number().optional(),
-    countryCode: Joi.string().optional(),
+    countryCode: Joi.string().when("phoneNumber", {
+      is: Joi.exist(),
+      then: Joi.required(),
+      otherwise: Joi.forbidden(),
+    }),
     bio: Joi.string().optional(),
     availability: Joi.any().optional(),
-    specilization: Joi.array().items(Joi.string()).optional(),
+    specialization: Joi.array().items(Joi.string()).optional(),
   }),
 };
 

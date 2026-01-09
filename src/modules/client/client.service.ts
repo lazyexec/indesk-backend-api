@@ -7,18 +7,109 @@ const createClient = async (
   userId: string,
   clientBody: IClient
 ): Promise<any> => {
-  const client = await prisma.client.create({
-    data: {
-      ...clientBody,
-      addedBy: userId,
+  // Destructure only the fields we need
+  const {
+    firstName,
+    lastName,
+    email,
+    dateOfBirth,
+    gender,
+    phoneNumber,
+    countryCode,
+    address,
+    insuranceProvider,
+    insuranceNumber,
+    insuranceAuthorizationNumber,
+    note,
+    status,
+    clinicId,
+    assignedClinicianId,
+  } = clientBody;
+
+  const clientExists = await prisma.client.findFirst({
+    where: { email },
+  });
+
+  if (clientExists) {
+    throw new ApiError(httpStatus.CONFLICT, "Email already Occupied!");
+  }
+
+  const clinicMember = await prisma.clinicMember.findUnique({
+    where: { id: assignedClinicianId },
+    select: { clinicId: true },
+  });
+
+  if (!clinicMember) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Assigned clinician not found");
+  }
+
+  if (clinicMember.clinicId !== clinicId) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Assigned clinician does not belong to this clinic"
+    );
+  }
+
+  // Verify clinic exists and user has access
+  const clinicAccess = await prisma.clinicMember.findFirst({
+    where: {
+      clinicId,
+      userId,
     },
   });
+
+  if (!clinicAccess) {
+    throw new ApiError(403, "You don't have access to this clinic");
+  }
+
+  const client = await prisma.client.create({
+    data: {
+      firstName,
+      lastName,
+      email,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+      gender,
+      phoneNumber,
+      countryCode,
+      address,
+      insuranceProvider,
+      insuranceNumber,
+      insuranceAuthorizationNumber,
+      note,
+      status,
+      clinicId,
+      assignedClinicianId,
+      addedBy: userId,
+    },
+    include: {
+      assignedClinician: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      },
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
   return client;
 };
 
 const getClients = async (filter: any, options: any) => {
+  console.log(filter, options);
   const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
-  const { search, ...restFilter } = filter;
+  const { search, status, ...restFilter } = filter;
 
   const where: any = {
     ...restFilter,
@@ -30,6 +121,7 @@ const getClients = async (filter: any, options: any) => {
       { lastName: { contains: search, mode: "insensitive" } },
       { email: { contains: search, mode: "insensitive" } },
     ];
+    status && (where.status = status);
   }
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -41,6 +133,9 @@ const getClients = async (filter: any, options: any) => {
       take,
       skip,
       orderBy: sort,
+      include: {
+        assignedClinician: true,
+      },
     }),
     prisma.client.count({ where }),
   ]);
@@ -54,11 +149,43 @@ const getClients = async (filter: any, options: any) => {
   };
 };
 
-const queryClients = getClients;
-
 const getClientById = async (id: string) => {
   const client = await prisma.client.findUnique({
     where: { id },
+    include: {
+      assignedClinician: {
+        select: {
+          user: {
+            select: {
+              id: true,
+              avatar: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+      },
+      addedByUser: {
+        select: {
+          id: true,
+          avatar: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      appointments: true,
+      notes: true,
+      assessments: true,
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
   });
   if (!client) {
     throw new ApiError(httpStatus.NOT_FOUND, "Client not found");
@@ -86,7 +213,6 @@ const deleteClient = async (id: string) => {
 export default {
   createClient,
   getClients,
-  queryClients,
   getClientById,
   updateClient,
   deleteClient,

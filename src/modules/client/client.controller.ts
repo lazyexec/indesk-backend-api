@@ -20,7 +20,7 @@ const createClient = catchAsync(async (req: Request, res: Response) => {
 
 const getClients = catchAsync(async (req: Request, res: Response) => {
   const clinicId = await clinicService.getClinicIdByUserId(req.user?.id!);
-  const filter = pick(req.query, ["addedBy", "search"]);
+  const filter = pick(req.query, ["addedBy", "search", "status"]);
   const options = pick(req.query, ["limit", "page", "sort"]);
   const result = await ClientService.getClients(
     { clinicId, ...filter },

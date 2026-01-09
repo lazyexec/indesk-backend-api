@@ -18,6 +18,16 @@ const getSessions = async (filter: any, options: any) => {
   const [sessions, totalDocs] = await Promise.all([
     prisma.session.findMany({
       where: filter,
+      include: {
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+            logo: true,
+            email: true,
+          },
+        },
+      },
       take,
       skip,
       orderBy: sort,
@@ -37,6 +47,16 @@ const getSessions = async (filter: any, options: any) => {
 const getSessionById = async (id: string) => {
   const session = await prisma.session.findUnique({
     where: { id },
+    include: {
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+          logo: true,
+          email: true,
+        },
+      },
+    },
   });
   if (!session) {
     throw new ApiError(httpStatus.NOT_FOUND, "Session not found");

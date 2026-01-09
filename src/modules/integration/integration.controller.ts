@@ -74,8 +74,102 @@ const disconnectIntegration = catchAsync(
   }
 );
 
+const updateIntegrationSettings = catchAsync(
+  async (req: Request, res: Response) => {
+    const userId = req.user!.id as string;
+    const clinicId = await clinicService.getClinicIdByUserId(userId);
+    if (!clinicId) {
+      throw new ApiError(
+        httpStatus.NOT_FOUND,
+        "Clinic not found for this user"
+      );
+    }
+
+    const { type, config } = req.body;
+    const integration = await integrationService.updateIntegrationSettings(
+      clinicId,
+      type,
+      config
+    );
+
+    res.status(httpStatus.OK).json(
+      response({
+        status: httpStatus.OK,
+        message: `${type} settings updated successfully`,
+        data: integration,
+      })
+    );
+  }
+);
+
+const getOAuthUrl = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user!.id as string;
+  const clinicId = await clinicService.getClinicIdByUserId(userId);
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found for this user");
+  }
+
+  const { type } = req.params;
+  const oauthUrl = await integrationService.getOAuthUrl(clinicId, type as any);
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "OAuth URL generated successfully",
+      data: { oauthUrl },
+    })
+  );
+});
+
+const handleOAuthCallback = catchAsync(async (req: Request, res: Response) => {
+  const { type } = req.params;
+  const { code, state, error } = req.query;
+
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+  // Handle OAuth errors from provider
+  if (error) {
+    return res.redirect(
+      `${frontendUrl}/settings/integrations?error=${encodeURIComponent(
+        error as string
+      )}&type=${type}`
+    );
+  }
+
+  if (!code || !state) {
+    return res.redirect(
+      `${frontendUrl}/settings/integrations?error=${encodeURIComponent(
+        "Missing authorization code"
+      )}&type=${type}`
+    );
+  }
+
+  try {
+    const integration = await integrationService.handleOAuthCallback(
+      type as any,
+      code as string,
+      state as string
+    );
+
+    // Redirect to frontend success page
+    res.redirect(
+      `${frontendUrl}/settings/integrations?success=true&type=${type}`
+    );
+  } catch (error: any) {
+    // Redirect to frontend error page
+    res.redirect(
+      `${frontendUrl}/settings/integrations?error=${encodeURIComponent(
+        error.message || "Failed to connect integration"
+      )}&type=${type}`
+    );
+  }
+});
+
 export default {
   getIntegrations,
   connectIntegration,
   disconnectIntegration,
+  updateIntegrationSettings,
+  getOAuthUrl,
+  handleOAuthCallback,
 };

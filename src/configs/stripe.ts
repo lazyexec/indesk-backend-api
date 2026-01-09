@@ -55,13 +55,17 @@ const createStripeSession = async ({
 const createPaymentIntent = async ({
   name,
   amount,
-  currency,
+  currency = "usd",
   metadata = {},
+  successUrl,
+  cancelUrl,
 }: {
   name: string;
   amount: number;
-  currency: string;
+  currency?: string;
   metadata?: Record<string, string>;
+  successUrl?: string;
+  cancelUrl?: string;
 }) => {
   return await stripe.checkout.sessions.create({
     mode: "payment",
@@ -75,8 +79,8 @@ const createPaymentIntent = async ({
         quantity: 1,
       },
     ],
-    success_url,
-    cancel_url,
+    success_url: successUrl || `${env.FRONTEND_URL}/appointment/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: cancelUrl || `${env.FRONTEND_URL}/appointment/payment/cancel`,
     metadata,
   });
 };

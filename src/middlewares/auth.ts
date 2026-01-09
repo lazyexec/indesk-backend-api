@@ -107,11 +107,17 @@ const getClinicMemberPermissions = async (
   );
 
   if (clinician.role === "superAdmin") {
-    return ["commonAdmin", "admin", "superAdmin", ...ALL_PERMISSION_KEYS];
+    return [
+      "common",
+      "commonAdmin",
+      "admin",
+      "superAdmin",
+      ...ALL_PERMISSION_KEYS,
+    ];
   }
 
   if (clinician.role === "admin") {
-    return ["commonAdmin", "admin", ...ALL_PERMISSION_KEYS];
+    return ["common", "commonAdmin", "admin", ...ALL_PERMISSION_KEYS];
   }
 
   const permissions = (clinician.clinic.permissions || {}) as Record<
@@ -127,3 +133,5 @@ const getClinicMemberPermissions = async (
 };
 
 export default auth;
+
+// TODO: what if the clinician exists in multiple clinics?

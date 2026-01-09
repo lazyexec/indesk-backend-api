@@ -22,10 +22,9 @@ router
     userController.updateProfile
   );
 
-// Admin Route (must be registered before ":userId" to avoid route collisions)
 router.get(
   "/all",
-  auth("admin"),
+  auth("provider"),
   validate(userValidation.queryAllUsers),
   userController.queryAllUsers
 );
@@ -41,7 +40,7 @@ router
 router
   .route("/restrict/:userId")
   .post(
-    auth("admin"),
+    auth("provider"),
     validate(userValidation.restrictUser),
     userController.restrictUser
   );
@@ -49,7 +48,7 @@ router
 router
   .route("/unrestrict/:userId")
   .post(
-    auth("admin"),
+    auth("provider"),
     validate(userValidation.unrestrictUser),
     userController.unrestrictUser
   );
@@ -57,7 +56,7 @@ router
 router
   .route("/create")
   .post(
-    auth("admin"),
+    auth("provider"),
     uploadAll,
     validate(userValidation.addUser),
     userController.addUser
@@ -66,14 +65,14 @@ router
 router
   .route("/delete/:userId")
   .delete(
-    auth("admin"),
+    auth("provider"),
     validate(userValidation.getUserById),
     userController.deleteUser
   );
 router
   .route("/recover/:userId")
   .post(
-    auth("admin"),
+    auth("provider"),
     validate(userValidation.getUserById),
     userController.recoverUser
   );

@@ -8,7 +8,11 @@ const updateProfile = {
     avatar: Joi.string().optional(),
     fcmToken: Joi.string().allow(null).optional(),
     phoneNumber: Joi.number().optional(),
-    countryCode: Joi.string().optional(),
+    countryCode: Joi.string().when("phoneNumber", {
+      is: Joi.exist(),
+      then: Joi.required(),
+      otherwise: Joi.forbidden(),
+    }),
   }),
 };
 
@@ -24,6 +28,11 @@ const queryAllUsers = {
     lastName: Joi.string().optional(),
     name: Joi.string().optional(),
     phoneNumber: Joi.number().optional(),
+    countryCode: Joi.string().when("phoneNumber", {
+      is: Joi.exist(),
+      then: Joi.required(),
+      otherwise: Joi.forbidden(),
+    }),
   }),
 };
 

@@ -1,10 +1,5 @@
 import { IUser } from "../user/user.interface";
 
-interface IReminder {
-  whatsapp: boolean;
-  email: boolean;
-}
-
 export interface IClient {
   id: string;
   firstName: string;
@@ -12,10 +7,16 @@ export interface IClient {
   email: string;
   dateOfBirth: Date;
   gender: "male" | "female" | "other";
-  phoneNumber?: string;
+  phoneNumber?: number;
+  countryCode?: string;
+  status: any;
   address?: any;
   note?: string;
+  insuranceProvider?: string;
+  insuranceNumber?: string;
+  insuranceAuthorizationNumber?: string;
   clinicId: string;
+  assignedClinicianId?: string;
   addedBy: string;
   createdAt: Date;
   updatedAt: Date;

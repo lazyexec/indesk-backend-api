@@ -8,35 +8,35 @@ const router: Router = express.Router();
 
 router.post(
   "/",
-  auth("clinitian_sessions"),
+  auth("clinician_sessions"),
   validate(sessionValidation.createSession),
   sessionController.createSession
 );
 
 router.get(
   "/",
-  auth("clinitian_sessions"),
+  auth("clinician_sessions"),
   validate(sessionValidation.getSessions),
   sessionController.getSessions
 );
 
 router.get(
   "/:sessionId",
-  auth("clinitian_sessions"),
+  auth("clinician_sessions"),
   validate(sessionValidation.getSession),
   sessionController.getSession
 );
 
 router.put(
   "/:sessionId",
-  auth("clinitian_sessions"),
+  auth("clinician_sessions"),
   validate(sessionValidation.updateSession),
   sessionController.updateSession
 );
 
 router.delete(
   "/:sessionId",
-  auth("clinitian_sessions"),
+  auth("clinician_sessions"),
   validate(sessionValidation.deleteSession),
   sessionController.deleteSession
 );

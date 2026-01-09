@@ -27,7 +27,7 @@ const addClinicMember = async (
     firstName,
     lastName,
     availability,
-    specilization,
+    specialization,
     ...userData
   } = memberData;
   // Verify clinic exists
@@ -124,7 +124,7 @@ const addClinicMember = async (
     data: {
       role: role,
       availability: availability || [],
-      specilization: specilization || [],
+      specialization: specialization || [],
       clinic: {
         connect: { id: clinicId },
       },

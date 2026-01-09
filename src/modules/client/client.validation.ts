@@ -7,7 +7,12 @@ const createClient = {
     email: Joi.string().required(),
     dateOfBirth: Joi.date().optional(),
     gender: Joi.string().optional(),
-    phoneNumber: Joi.string().optional(),
+    phoneNumber: Joi.number().optional(),
+    countryCode: Joi.string().when("phoneNumber", {
+      is: Joi.exist(),
+      then: Joi.required(),
+      otherwise: Joi.forbidden(),
+    }),
     address: Joi.object()
       .keys({
         street: Joi.string().optional(),
@@ -16,9 +21,14 @@ const createClient = {
         zip: Joi.string().optional(),
       })
       .optional(),
+    status: Joi.string()
+      .optional()
+      .allow("active", "inactive", "pending")
+      .default("active"),
     insuranceProvider: Joi.string().optional(),
     insuranceNumber: Joi.string().optional(),
-    insuranceAthorizationNumber: Joi.string().optional(),
+    insuranceAuthorizationNumber: Joi.string().optional(),
+    assignedClinicianId: Joi.string().uuid().optional(),
     note: Joi.string().optional(),
     clinicId: Joi.string().uuid().required(),
   }),
@@ -29,6 +39,7 @@ const getClients = {
     clinicId: Joi.string().uuid().optional(),
     addedBy: Joi.string().uuid().optional(),
     search: Joi.string().optional(),
+    status: Joi.string().optional().allow("active", "inactive", "pending"),
     limit: Joi.number().integer().optional(),
     page: Joi.number().integer().optional(),
     sort: Joi.string().optional(),
@@ -47,12 +58,17 @@ const updateClient = {
   }),
   body: Joi.object()
     .keys({
-      firstName: Joi.string().optional(),
-      lastName: Joi.string().optional(),
-      email: Joi.string().optional(),
+      firstName: Joi.string().required(),
+      lastName: Joi.string().required(),
+      email: Joi.string().required(),
       dateOfBirth: Joi.date().optional(),
-      gender: Joi.string().valid("male", "female", "other").optional(),
-      phoneNumber: Joi.string().optional(),
+      gender: Joi.string().optional(),
+      phoneNumber: Joi.number().optional(),
+      countryCode: Joi.string().when("phoneNumber", {
+        is: Joi.exist(),
+        then: Joi.required(),
+        otherwise: Joi.forbidden(),
+      }),
       address: Joi.object()
         .keys({
           street: Joi.string().optional(),
@@ -61,8 +77,15 @@ const updateClient = {
           zip: Joi.string().optional(),
         })
         .optional(),
+      status: Joi.string()
+        .optional()
+        .allow("active", "inactive", "pending")
+        .default("active"),
+      insuranceProvider: Joi.string().optional(),
+      insuranceNumber: Joi.string().optional(),
+      insuranceAuthorizationNumber: Joi.string().optional(),
+      assignedClinicianId: Joi.string().uuid().optional(),
       note: Joi.string().optional(),
-      clinicId: Joi.string().uuid().optional(),
     })
     .min(1),
 };
@@ -73,10 +96,20 @@ const deleteClient = {
   }),
 };
 
+const updateStatus = {
+  params: Joi.object().keys({
+    clientId: Joi.string().uuid().required(),
+  }),
+  body: Joi.object().keys({
+    status: Joi.string().required().allow("active", "inactive", "pending"),
+  }),
+};
+
 export default {
   createClient,
   getClients,
   getClient,
   updateClient,
   deleteClient,
+  updateStatus,
 };
