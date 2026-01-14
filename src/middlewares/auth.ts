@@ -39,6 +39,10 @@ const verifyCallback =
       );
     }
 
+    // Populate clinic ID for the user
+    const clinicId = await getClinicIdForUser(user.id);
+    user.clinicId = clinicId;
+
     req.user = user;
 
     // Then check permissions
@@ -50,12 +54,33 @@ const verifyCallback =
       );
 
       if (!hasRequiredRights) {
+        console.log('Going to Throw an Error...!')
         return reject(new ApiError(httpStatus.FORBIDDEN, "Forbidden!"));
       }
     }
 
     resolve();
   };
+
+const getClinicIdForUser = async (userId: string): Promise<string | null> => {
+  // First check if user owns a clinic
+  const ownedClinic = await prisma.clinic.findFirst({
+    where: { ownerId: userId },
+    select: { id: true }
+  });
+  
+  if (ownedClinic) {
+    return ownedClinic.id;
+  }
+
+  // Then check if user is a member of a clinic
+  const clinicMember = await prisma.clinicMember.findFirst({
+    where: { userId },
+    select: { clinicId: true }
+  });
+
+  return clinicMember?.clinicId || null;
+};
 
 const getUserPermissions = async (user: any): Promise<string[]> => {
   if (user.role !== "user") {

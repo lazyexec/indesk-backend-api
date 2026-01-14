@@ -3,15 +3,21 @@ import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 import { randomBytes } from "crypto";
+import transactionService from "../transaction/transaction.service";
+import googleCalendarIntegration from "../integration/services/google-calendar.integration";
+import stripeIntegration from "../integration/services/stripe.integration";
+import zoomIntegration from "../integration/services/zoom.integration";
+import { isIntegrationConnected } from "../integration/integration.helper";
 
 interface ICreateAppointment {
+  clientId: string; // Changed from client object to clientId
   sessionId: string;
-  clientEmail: string;
   clinicianId: string;
-  date: Date; // Just the date part (e.g., 2024-01-15)
-  time: Date; // Just the time part (e.g., 14:30:00)
+  date: Date;
+  time: Date;
   note?: string;
   meetingType?: "in_person" | "zoom";
+  via?: "token" | "admin";
 }
 
 const createAppointment = async (
@@ -19,24 +25,23 @@ const createAppointment = async (
   appointmentBody: ICreateAppointment
 ): Promise<any> => {
   const {
+    clientId,
     sessionId,
-    clientEmail,
     clinicianId,
     date,
     time,
     note,
     meetingType = "zoom",
+    via = "admin",
   } = appointmentBody;
 
-  // Find client
-  const client = await prisma.client.findFirst({
-    where: { email: clientEmail },
+  const client = await prisma.client.findUnique({
+    where: { id: clientId },
   });
   if (!client) {
     throw new ApiError(httpStatus.NOT_FOUND, "Client not found");
   }
 
-  // Find session
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
   });
@@ -44,7 +49,6 @@ const createAppointment = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Session not found");
   }
 
-  // Combine date and time into a single DateTime
   const appointmentDate = new Date(date);
   const appointmentTime = new Date(time);
 
@@ -57,28 +61,23 @@ const createAppointment = async (
     appointmentTime.getSeconds()
   );
 
-  // Calculate end time (duration is in minutes)
   const duration = session.duration;
   const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
 
-  // Check for time conflicts
   const conflictingAppointment = await prisma.appointment.findFirst({
     where: {
       clinicianId: clinicianId,
       OR: [
         {
-          // New appointment starts during existing appointment
           AND: [
             { startTime: { lte: startTime } },
             { endTime: { gt: startTime } },
           ],
         },
         {
-          // New appointment ends during existing appointment
           AND: [{ startTime: { lt: endTime } }, { endTime: { gte: endTime } }],
         },
         {
-          // New appointment completely contains existing appointment
           AND: [
             { startTime: { gte: startTime } },
             { endTime: { lte: endTime } },
@@ -92,24 +91,97 @@ const createAppointment = async (
     throw new ApiError(httpStatus.BAD_REQUEST, "Time slot is not available");
   }
 
-  // Generate payment token for public access
-  const paymentToken = randomBytes(32).toString("hex");
+  const appointmentToken = randomBytes(32).toString("hex");
+
+  const transaction = await transactionService.createTransaction({
+    clientId: client.id,
+    sessionId,
+    amount: session.price,
+    method: "stripe",
+    description: `${client.firstName} ${client.lastName} appointment with ${session.name}`,
+    type: "appointment",
+    meta: {
+      appointmentToken,
+    },
+    status: "pending",
+  });
+
+  // Create Stripe payment link if integration is connected
+  let paymentUrl: string | null = null;
+  try {
+    const hasStripe = await isIntegrationConnected(session.clinicId, "stripe");
+    if (hasStripe) {
+      const payment = await stripeIntegration.createPaymentLink(
+        session.clinicId,
+        {
+          amount: session.price,
+          description: `Appointment: ${session.name}`,
+          metadata: {
+            appointmentToken,
+            clientId: client.id,
+            sessionId,
+            transactionId: transaction.id,
+          },
+        }
+      );
+      paymentUrl = payment.url;
+      // TODO: Send payment link to client via email
+    }
+  } catch (error) {
+    console.error("Failed to create Stripe payment link:", error);
+    // Continue without payment link
+  }
+
+  // Create Zoom meeting if meetingType is zoom and integration is connected
+  let zoomJoinUrl: string | null = null;
+  let zoomStartUrl: string | null = null;
+  let zoomMeetingId: string | null = null;
+
+  if (meetingType === "zoom") {
+    try {
+      const hasZoom = await isIntegrationConnected(session.clinicId, "zoom");
+      if (hasZoom) {
+        const meeting = await zoomIntegration.createMeeting(session.clinicId, {
+          topic: `${session.name} - ${client.firstName} ${client.lastName}`,
+          startTime,
+          duration: session.duration,
+          agenda: note || `Appointment for ${session.name}`,
+        });
+        zoomJoinUrl = meeting.joinUrl;
+        zoomStartUrl = meeting.startUrl;
+        zoomMeetingId = meeting.meetingId;
+      } else {
+        // Fallback to dummy URL if Zoom not connected
+        zoomJoinUrl = null;
+        zoomStartUrl = null;
+        zoomMeetingId = null;
+      }
+    } catch (error) {
+      console.error("Failed to create Zoom meeting:", error);
+      zoomJoinUrl = null;
+      zoomStartUrl = null;
+      zoomMeetingId = null;
+    }
+  }
 
   // Create appointment
   const appointment = await prisma.appointment.create({
     data: {
       clinicId: session.clinicId,
       clientId: client.id,
-      clinicianId: clinicianId,
-      addedBy: addedBy,
-      sessionId: sessionId,
-      note: note,
-      meetingType: meetingType,
-      startTime: startTime,
-      endTime: endTime,
-      paymentToken,
-      paymentStatus: "pending",
-      paymentAmount: session.price,
+      clinicianId,
+      addedBy,
+      sessionId,
+      note,
+      meetingType,
+      startTime,
+      endTime,
+      appointmentToken,
+      transactionId: transaction.id,
+      zoomJoinUrl,
+      zoomStartUrl,
+      zoomMeetingId,
+      via,
     },
     include: {
       session: {
@@ -136,9 +208,211 @@ const createAppointment = async (
     },
   });
 
+  // Create Google Calendar event if integration is connected
+  try {
+    const hasGoogleCalendar = await isIntegrationConnected(
+      session.clinicId,
+      "google_calendar"
+    );
+    if (hasGoogleCalendar) {
+      await googleCalendarIntegration.createCalendarEvent(session.clinicId, {
+        title: `${session.name} - ${client.firstName} ${client.lastName}`,
+        description: note || `Appointment for ${session.name}`,
+        startTime,
+        endTime,
+        attendees: [client.email],
+        location: meetingType === "zoom" ? zoomJoinUrl || undefined : undefined,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to create Google Calendar event:", error);
+    // Continue without calendar event
+  }
+
   return appointment;
 };
 
+// Token-based appointment creation (public access)
+const applyAppointmentWithToken = async (token: string, body: any) => {
+  const {
+    clientFirstName,
+    clientLastName,
+    clientEmail,
+    clientPhone,
+    clientCountryCode,
+    sessionId,
+    ...rest
+  } = body;
+
+  const clinician = await prisma.clinicMember.findUnique({
+    where: { clinicianToken: token },
+  });
+
+  if (!clinician) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Something went wrong!");
+  }
+
+  // Find or create client
+  let client = await prisma.client.findFirst({
+    where: { email: clientEmail, clinicId: clinician.clinicId },
+  });
+
+  if (!client) {
+    client = await prisma.client.create({
+      data: {
+        firstName: clientFirstName,
+        lastName: clientLastName,
+        email: clientEmail,
+        phoneNumber: clientPhone,
+        countryCode: clientCountryCode,
+        clinicId: clinician.clinicId,
+        addedBy: clinician.id,
+      },
+    });
+  }
+
+  // Call the reusable createAppointment function
+  const appointment = await createAppointment(clinician.id, {
+    ...rest,
+    clientId: client.id,
+    clinicianId: clinician.id,
+    sessionId,
+    via: "token",
+  });
+
+  return appointment;
+};
+
+// Admin/Employee appointment creation
+const createAppointByEmployees = async (
+  addedBy: string,
+  appointmentBody: ICreateAppointment
+) => {
+  // Simply call the reusable createAppointment function
+  const appointment = await createAppointment(addedBy, appointmentBody);
+
+  return appointment;
+};
+
+// Admin/Clinician: Get all appointments with filters
+const getAllAppointments = async (filter: any, options: any) => {
+  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+
+  const where: any = {};
+
+  if (filter.startDate && filter.endDate) {
+    where.startTime = {
+      gte: new Date(filter.startDate),
+      lte: new Date(filter.endDate),
+    };
+  }
+
+  if (filter.clinicianId) {
+    where.clinicianId = filter.clinicianId;
+  }
+
+  if (filter.status) {
+    where.status = filter.status;
+  }
+
+  const [appointments, totalDocs] = await Promise.all([
+    prisma.appointment.findMany({
+      where,
+      orderBy: sort,
+      skip,
+      take,
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        session: {
+          select: {
+            name: true,
+            duration: true,
+            price: true,
+          },
+        },
+        clinician: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.appointment.count({
+      where,
+    }),
+  ]);
+
+  return {
+    docs: appointments,
+    totalDocs,
+    limit: take,
+    page: Number(page),
+    totalPages: Math.ceil(totalDocs / take),
+  };
+};
+
+const updateAppointment = async (appointmentId: string, updateBody: any) => {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+  });
+  if (!appointment) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Appointment not found");
+  }
+
+  // Update
+  const updatedAppointment = await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: updateBody,
+    include: {
+      client: true,
+      session: true,
+    },
+  });
+
+  return updatedAppointment;
+};
+
+const updateAppointmentStatus = async (appointmentId: string, status: any) => {
+  const appointment = await prisma.appointment.update({
+    where: { id: appointmentId },
+    data: { status },
+  });
+
+  return appointment;
+};
+
+const deleteAppointment = async (appointmentId: string) => {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+  });
+  if (!appointment) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Appointment not found");
+  }
+
+  await prisma.appointment.delete({
+    where: { id: appointmentId },
+  });
+
+  return appointment;
+};
+
+// Get client appointments Clinician or Admin
 const getClientAppointments = async (userId: string, options: any) => {
   const { page = 1, limit = 10, sort = { createdAt: "desc" } } = options;
   const skip = (Number(page) - 1) * Number(limit);
@@ -169,64 +443,7 @@ const getClientAppointments = async (userId: string, options: any) => {
   };
 };
 
-/**
- * Get appointment by payment token (public access)
- * @param {string} paymentToken
- * @returns {Promise<any>}
- */
-const getAppointmentByToken = async (paymentToken: string) => {
-  const appointment = await prisma.appointment.findUnique({
-    where: { paymentToken },
-    include: {
-      session: {
-        select: {
-          id: true,
-          name: true,
-          price: true,
-          duration: true,
-          description: true,
-        },
-      },
-      client: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-        },
-      },
-      clinic: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phoneNumber: true,
-        },
-      },
-      clinician: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          avatar: true,
-        },
-      },
-    },
-  });
-
-  if (!appointment) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Appointment not found");
-  }
-
-  return appointment;
-};
-
-/**
- * Get appointment by ID (for authenticated users)
- * @param {string} appointmentId
- * @returns {Promise<any>}
- */
+// Get appointment by id Clinician or Admin
 const getAppointmentById = async (appointmentId: string) => {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
@@ -258,11 +475,15 @@ const getAppointmentById = async (appointmentId: string) => {
       },
       clinician: {
         select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          avatar: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatar: true,
+            },
+          },
         },
       },
     },
@@ -275,76 +496,473 @@ const getAppointmentById = async (appointmentId: string) => {
   return appointment;
 };
 
-/**
- * Update appointment payment status
- * @param {string} appointmentId
- * @param {string} paymentStatus
- * @param {string} stripeSessionId
- * @returns {Promise<any>}
- */
-const updateAppointmentPayment = async (
-  appointmentId: string,
-  paymentStatus: string,
-  stripeSessionId?: string
-) => {
-  const updateData: any = {
-    paymentStatus,
-  };
+// Anyone with the token can get the session
+const getAppointmentSessionByToken = async (token: string, options: any) => {
+  const { page = 1, limit = 10, sort = { createdAt: "desc" } } = options;
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
 
-  if (stripeSessionId) {
-    updateData.stripeSessionId = stripeSessionId;
-  }
-
-  if (paymentStatus === "paid") {
-    updateData.paidAt = new Date();
-  }
-
-  const appointment = await prisma.appointment.update({
-    where: { id: appointmentId },
-    data: updateData,
+  const seesions = await prisma.clinicMember.findUnique({
+    where: { clinicianToken: token },
     include: {
-      session: {
+      clinic: {
         select: {
-          name: true,
-          price: true,
-        },
-      },
-      client: {
-        select: {
-          firstName: true,
-          lastName: true,
-          email: true,
+          sessions: {
+            skip,
+            take,
+            orderBy: sort,
+          },
         },
       },
     },
   });
 
-  return appointment;
+  if (!seesions) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Session not found");
+  }
+
+  return {
+    docs: seesions.clinic.sessions,
+    totalDocs: seesions.clinic.sessions.length,
+    limit: take,
+    page: Number(page),
+    totalPages: Math.ceil(seesions.clinic.sessions.length / take),
+  };
 };
 
-/**
- * Update appointment stripe session ID
- * @param {string} appointmentId
- * @param {string} stripeSessionId
- * @returns {Promise<any>}
- */
-const updateAppointmentStripeSession = async (
-  appointmentId: string,
-  stripeSessionId: string
+const getUnpaidAppointments = async (
+  userId: string,
+  filter: any,
+  options: any
 ) => {
-  const appointment = await prisma.appointment.update({
-    where: { id: appointmentId },
-    data: { stripeSessionId },
+  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+  const clinicName = await prisma.clinicMember.findFirst({
+    where: { userId },
+    select: { clinic: { select: { id: true } } },
   });
 
-  return appointment;
+  if (!clinicName) {
+    return {
+      docs: [],
+      totalDocs: 0,
+      limit: take,
+      page: Number(page),
+      totalPages: 0,
+    };
+  }
+
+  // Find appointments that are pending AND have no invoice attached
+  const where: any = {
+    status: "pending",
+    clinicId: clinicName.clinic.id,
+    invoiceId: null,
+  };
+
+  if (filter.startDate && filter.endDate) {
+    where.startTime = {
+      gte: new Date(filter.startDate),
+      lte: new Date(filter.endDate),
+    };
+  }
+
+  const [appointments, totalDocs] = await Promise.all([
+    prisma.appointment.findMany({
+      where,
+      orderBy: sort,
+      skip,
+      take,
+    }),
+    prisma.appointment.count({
+      where,
+    }),
+  ]);
+
+  return {
+    docs: appointments,
+    totalDocs,
+    limit: take,
+    page: Number(page),
+    totalPages: Math.ceil(totalDocs / take),
+  };
+};
+// Get clinic calendar view - all appointments for the clinic
+const getClinicCalendarAppointments = async (
+  clinicId: string,
+  filter: any,
+  options: any
+) => {
+  const { startDate, endDate, view = 'month' } = filter;
+  
+  // Default date range based on view
+  let dateRange: { gte: Date; lte: Date };
+  
+  if (startDate && endDate) {
+    dateRange = {
+      gte: new Date(startDate),
+      lte: new Date(endDate),
+    };
+  } else {
+    // Default to current month if no dates provided
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    
+    dateRange = {
+      gte: startOfMonth,
+      lte: endOfMonth,
+    };
+  }
+
+  const where: any = {
+    clinicId,
+    startTime: dateRange,
+  };
+
+  // Optional status filter
+  if (filter.status) {
+    where.status = filter.status;
+  }
+
+  const appointments = await prisma.appointment.findMany({
+    where,
+    orderBy: { startTime: 'asc' },
+    include: {
+      client: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phoneNumber: true,
+        },
+      },
+      session: {
+        select: {
+          id: true,
+          name: true,
+          duration: true,
+          price: true,
+          color: true, // Assuming sessions have colors for calendar display
+        },
+      },
+      clinician: {
+        select: {
+          id: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  // Format appointments for calendar display
+  const calendarEvents = appointments.map(appointment => ({
+    id: appointment.id,
+    title: `${appointment.session.name} - ${appointment.client.firstName} ${appointment.client.lastName}`,
+    start: appointment.startTime,
+    end: appointment.endTime,
+    status: appointment.status,
+    meetingType: appointment.meetingType,
+    client: appointment.client,
+    clinician: appointment.clinician,
+    session: appointment.session,
+    note: appointment.note,
+    zoomJoinUrl: appointment.zoomJoinUrl,
+    backgroundColor: appointment.session.color || '#3788d8', // Default color
+    borderColor: appointment.session.color || '#3788d8',
+    textColor: '#ffffff',
+  }));
+
+  return {
+    events: calendarEvents,
+    totalCount: appointments.length,
+    dateRange,
+  };
+};
+
+// Get clinician's personal schedule
+const getClinicianSchedule = async (
+  clinicianId: string,
+  filter: any,
+  options: any
+) => {
+  const { startDate, endDate, view = 'month' } = filter;
+  
+  // Default date range based on view
+  let dateRange: { gte: Date; lte: Date };
+  
+  if (startDate && endDate) {
+    dateRange = {
+      gte: new Date(startDate),
+      lte: new Date(endDate),
+    };
+  } else {
+    // Default to current month if no dates provided
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    
+    dateRange = {
+      gte: startOfMonth,
+      lte: endOfMonth,
+    };
+  }
+
+  const where: any = {
+    clinicianId,
+    startTime: dateRange,
+  };
+
+  // Optional status filter
+  if (filter.status) {
+    where.status = filter.status;
+  }
+
+  const appointments = await prisma.appointment.findMany({
+    where,
+    orderBy: { startTime: 'asc' },
+    include: {
+      client: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phoneNumber: true,
+        },
+      },
+      session: {
+        select: {
+          id: true,
+          name: true,
+          duration: true,
+          price: true,
+          color: true,
+        },
+      },
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  // Format appointments for calendar display
+  const calendarEvents = appointments.map(appointment => ({
+    id: appointment.id,
+    title: `${appointment.session.name} - ${appointment.client.firstName} ${appointment.client.lastName}`,
+    start: appointment.startTime,
+    end: appointment.endTime,
+    status: appointment.status,
+    meetingType: appointment.meetingType,
+    client: appointment.client,
+    session: appointment.session,
+    clinic: appointment.clinic,
+    note: appointment.note,
+    zoomJoinUrl: appointment.zoomJoinUrl,
+    backgroundColor: appointment.session.color || '#3788d8',
+    borderColor: appointment.session.color || '#3788d8',
+    textColor: '#ffffff',
+  }));
+
+  return {
+    events: calendarEvents,
+    totalCount: appointments.length,
+    dateRange,
+  };
+};
+
+// Get appointments by clinic member ID (for specific clinician view)
+const getAppointmentsByClinicMemberId = async (
+  clinicMemberId: string,
+  filter: any,
+  options: any
+) => {
+  const { limit = 10, page = 1, sort = { startTime: "asc" } } = options;
+  const skip = (Number(page) - 1) * Number(limit);
+  const take = Number(limit);
+
+  const where: any = {
+    clinicianId: clinicMemberId,
+  };
+
+  // Date range filter
+  if (filter.startDate && filter.endDate) {
+    where.startTime = {
+      gte: new Date(filter.startDate),
+      lte: new Date(filter.endDate),
+    };
+  }
+
+  // Status filter
+  if (filter.status) {
+    where.status = filter.status;
+  }
+
+  const [appointments, totalDocs] = await Promise.all([
+    prisma.appointment.findMany({
+      where,
+      orderBy: sort,
+      skip,
+      take,
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phoneNumber: true,
+          },
+        },
+        session: {
+          select: {
+            id: true,
+            name: true,
+            duration: true,
+            price: true,
+            description: true,
+          },
+        },
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    }),
+    prisma.appointment.count({
+      where,
+    }),
+  ]);
+
+  return {
+    docs: appointments,
+    totalDocs,
+    limit: take,
+    page: Number(page),
+    totalPages: Math.ceil(totalDocs / take),
+  };
+};
+
+// Get calendar statistics for dashboard
+const getCalendarStats = async (clinicId: string, filter: any) => {
+  const { startDate, endDate } = filter;
+  
+  // Default to current month if no dates provided
+  let dateRange: { gte: Date; lte: Date };
+  
+  if (startDate && endDate) {
+    dateRange = {
+      gte: new Date(startDate),
+      lte: new Date(endDate),
+    };
+  } else {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    
+    dateRange = {
+      gte: startOfMonth,
+      lte: endOfMonth,
+    };
+  }
+
+  const where = {
+    clinicId,
+    startTime: dateRange,
+  };
+
+  const [
+    totalAppointments,
+    completedAppointments,
+    pendingAppointments,
+    cancelledAppointments,
+    upcomingAppointments,
+  ] = await Promise.all([
+    prisma.appointment.count({ where }),
+    prisma.appointment.count({ where: { ...where, status: 'completed' } }),
+    prisma.appointment.count({ where: { ...where, status: 'pending' } }),
+    prisma.appointment.count({ where: { ...where, status: 'cancelled' } }),
+    prisma.appointment.count({ 
+      where: { 
+        ...where, 
+        status: { in: ['pending', 'scheduled'] },
+        startTime: { gte: new Date() }
+      } 
+    }),
+  ]);
+
+  // Get appointments by clinician
+  const appointmentsByClinician = await prisma.appointment.groupBy({
+    by: ['clinicianId'],
+    where,
+    _count: {
+      id: true,
+    },
+  });
+
+  // Get clinician details
+  const clinicianStats = await Promise.all(
+    appointmentsByClinician.map(async (stat) => {
+      const clinician = await prisma.clinicMember.findUnique({
+        where: { id: stat.clinicianId },
+        select: {
+          id: true,
+          user: {
+            select: {
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+        },
+      });
+
+      return {
+        clinicianId: stat.clinicianId,
+        appointmentCount: stat._count.id,
+        clinician,
+      };
+    })
+  );
+
+  return {
+    totalAppointments,
+    completedAppointments,
+    pendingAppointments,
+    cancelledAppointments,
+    upcomingAppointments,
+    appointmentsByClinician: clinicianStats,
+    dateRange,
+  };
 };
 
 export default {
   createAppointment,
+  createAppointByEmployees,
+  getAllAppointments,
+  updateAppointment,
+  deleteAppointment,
+  updateAppointmentStatus,
   getClientAppointments,
-  getAppointmentByToken,
   getAppointmentById,
-  updateAppointmentPayment,
-  updateAppointmentStripeSession,
+  getAppointmentSessionByToken,
+  applyAppointmentWithToken,
+  getUnpaidAppointments,
+  getClinicCalendarAppointments,
+  getClinicianSchedule,
+  getAppointmentsByClinicMemberId,
+  getCalendarStats,
 };

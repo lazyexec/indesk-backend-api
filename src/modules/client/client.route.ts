@@ -2,41 +2,41 @@ import express, { Router } from "express";
 import clientController from "./client.controller";
 import validate from "../../middlewares/validate";
 import clientValidation from "./client.validation";
-import auth from "../../middlewares/auth";
+import { authWithActiveSubscription } from "../../middlewares/authWithSubscription";
 
 const router: Router = express.Router();
 
 router.post(
   "/",
-  auth("clinician_clients"),
+  authWithActiveSubscription("clinician_clients"),
   validate(clientValidation.createClient),
   clientController.createClient
 );
 
 router.get(
   "/",
-  auth("clinician_clients"),
+  authWithActiveSubscription("clinician_clients"),
   validate(clientValidation.getClients),
   clientController.getClients
 );
 
 router.get(
   "/:clientId",
-  auth("clinician_clients"),
+  authWithActiveSubscription("clinician_clients"),
   validate(clientValidation.getClient),
   clientController.getClient
 );
 
 router.put(
   "/:clientId",
-  auth("clinician_clients"),
+  authWithActiveSubscription("clinician_clients"),
   validate(clientValidation.updateClient),
   clientController.updateClient
 );
 
 router.delete(
   "/:clientId",
-  auth("clinician_clients"),
+  authWithActiveSubscription("clinician_clients"),
   validate(clientValidation.deleteClient),
   clientController.deleteClient
 );

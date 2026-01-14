@@ -53,7 +53,6 @@ enum IntegrationType {
   stripe
   xero
   mailchimp
-  whatsapp
   zoom
 }
 
@@ -72,6 +71,27 @@ enum AssessmentStatus {
   in_progress
   completed
 }
+
+enum InvoiceStatus {
+  pending
+  paid
+  overdue
+}
+
+enum PlanType {
+  free
+  professional
+  enterprise
+}
+
+enum SubscriptionStatus {
+  active
+  inactive
+  cancelled
+  past_due
+  trialing
+}
+
 
 model User {
   id                         String               @id @default(uuid())
@@ -104,12 +124,12 @@ model User {
   tokens                     Token[]
   ownedClinics               Clinic[]             @relation("ClinicOwner")
   clinicMemberships          ClinicMember[]
-  appointments               Appointment[]        @relation("AppointmentClinician")
-  addedAppointments          Appointment[]        @relation("AppointmentAddedBy")
   notes                      ClinicalNote[]
   assessments                AssessmentInstance[]
   createdAssessmentTemplates AssessmentTemplate[]
-  addedClients               Client[]             @relation("ClientAddedBy")
+  clients                    Client[]
+  reportedIssues             UserIssue[]
+  adminResponses             UserIssue[]          @relation("AdminResponse")
 }
 
 model Token {
@@ -132,9 +152,15 @@ model Clinic {
   countryCode String?
   address     Json?
   logo        String?
+  color       String?
+  description String?
   // Simple permission system - JSON object with feature flags
   // Example: { "clients": true, "sessions": true, "billing": false }
   permissions Json    @default("{}")
+
+  // Activation status for purchase flow
+  isActive    Boolean   @default(false)
+  activatedAt DateTime?
 
   ownerId      String         @unique
   owner        User           @relation("ClinicOwner", fields: [ownerId], references: [id])
@@ -145,22 +171,26 @@ model Clinic {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   sessions     Session[]
+  invoices     Invoice[]
 
   integrations        Integration[]
   assessmentTemplates AssessmentTemplate[]
+  subscription        Subscription?
+  issues              UserIssue[]
 
   @@index([ownerId])
 }
 
 model Integration {
-  id        String            @id @default(uuid())
-  clinicId  String
-  clinic    Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  type      IntegrationType
-  status    IntegrationStatus @default(disconnected)
-  config    Json? // Stores credentials, IDs, tokens, etc.
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id           String            @id @default(uuid())
+  clinicId     String
+  clinic       Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  type         IntegrationType
+  status       IntegrationStatus @default(disconnected)
+  config       Json? // Stores credentials, IDs, tokens, etc.
+  isConfigured Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@unique([clinicId, type])
   @@index([clinicId])
@@ -173,6 +203,7 @@ model ClinicMember {
   clinicId            String
   clinic              Clinic               @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   role                ClinicRole           @default(clinician)
+  clinicianToken      String?              @unique @default(uuid())
   availability        String[]             @default([])
   specialization      String[]             @default([])
   assignedClients     Client[]             @relation("AssignedClinician")
@@ -180,6 +211,11 @@ model ClinicMember {
   assessmentInstances AssessmentInstance[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
+
+  appointments      Appointment[] @relation("AppointmentClinician")
+  addedAppointments Appointment[] @relation("AppointmentAddedBy")
+  addedClients      Client[]      @relation("ClientAddedBy")
+  clients           Client[]
 
   @@unique([userId, clinicId])
   @@index([clinicId])
@@ -219,16 +255,21 @@ model Client {
 
   // Added by
   addedBy     String
-  addedByUser User   @relation("ClientAddedBy", fields: [addedBy], references: [id], onDelete: Cascade)
+  addedByUser ClinicMember @relation("ClientAddedBy", fields: [addedBy], references: [id], onDelete: Cascade)
 
   // Relations
   appointments        Appointment[]
   notes               ClinicalNote[]
   assessmentInstances AssessmentInstance[]
   transactions        Transaction[]
+  invoices            Invoice[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User?         @relation(fields: [userId], references: [id])
+  userId         String?
+  clinicMember   ClinicMember? @relation(fields: [clinicMemberId], references: [id])
+  clinicMemberId String?
 
   @@index([clinicId])
   @@index([email])
@@ -254,54 +295,47 @@ model Session {
 }
 
 model Appointment {
-  id String @id @default(uuid())
+  id               String            @id @default(uuid())
+  clinicId         String
+  clinicianId      String
+  addedBy          String
+  clientId         String
+  sessionId        String
+  status           AppointmentStatus @default(pending)
+  startTime        DateTime
+  endTime          DateTime
+  note             String?
+  meetingType      MeetingType       @default(zoom)
+  zoomJoinUrl      String?
+  zoomStartUrl     String?
+  zoomMeetingId    String?
+  appointmentToken String?           @unique
+  transactionId    String?
+  invoiceId        String?
+  via              String?           @default("admin")
 
-  clinicId String
-  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-
-  clinicianId String
-
-  addedBy String
-
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-
-  sessionId String
-
-  status AppointmentStatus @default(scheduled)
-
-  startTime DateTime
-  endTime   DateTime
-
-  note String?
-
-  // Online meeting (Zoom)
-  meetingType   MeetingType @default(in_person) // IN_PERSON | ZOOM
-  zoomJoinUrl   String?
-  zoomStartUrl  String?
-  zoomMeetingId String?
-
-  // Payment //TODO: Move to Transaction model?
-  paymentToken    String?   @unique // Token for public access to appointment
-  paymentStatus   String?   @default("pending") // pending, paid, failed, refunded
-  stripeSessionId String? // Stripe checkout session ID
-  paymentAmount   Float? // Amount paid
-  paidAt          DateTime?
-
-  clinician   User    @relation("AppointmentClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
-  addedByUser User    @relation("AppointmentAddedBy", fields: [addedBy], references: [id], onDelete: Restrict)
-  session     Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  // Relations
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  invoice     Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  clinician   ClinicMember @relation("AppointmentClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
+  addedByUser ClinicMember @relation("AppointmentAddedBy", fields: [addedBy], references: [id], onDelete: Restrict)
+  session     Session      @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  clinic      Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Remove these lines:
+  // userId         String?
+  // clinicMemberId String?
 
   @@index([clinicId])
   @@index([clinicianId])
   @@index([addedBy])
   @@index([clientId])
   @@index([startTime])
-  @@index([paymentToken])
-  @@index([stripeSessionId])
+  @@index([appointmentToken])
 }
 
 model ClinicalNote {
@@ -413,9 +447,133 @@ model Transaction {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  client  Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  session     Session       @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  appointment Appointment[]
 
   @@index([sessionId])
   @@index([clientId])
+}
+
+model Invoice {
+  id          String        @id @default(uuid())
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  clinicId    String
+  clinic      Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  totalAmount Float
+  status      InvoiceStatus @default(pending)
+  issueDate   DateTime
+  dueDate     DateTime
+
+  appointments Appointment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([clinicId])
+}
+
+model Plan {
+  id            String        @id @default(uuid())
+  name          String        @unique
+  type          PlanType      @unique
+  description   String?
+  price         Float         @default(0)
+  clientLimit   Int           @default(0) // 0 means unlimited
+  features      Json          @default("{}") // JSON object with feature flags
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  subscriptions Subscription[]
+
+  @@index([type])
+}
+
+model Subscription {
+  id                String             @id @default(uuid())
+  clinicId          String             @unique
+  clinic            Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  planId            String
+  plan              Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status            SubscriptionStatus @default(active)
+  stripeCustomerId  String?            @unique
+  stripeSubscriptionId String?         @unique
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  trialStart        DateTime?
+  trialEnd          DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([clinicId])
+  @@index([planId])
+  @@index([status])
+}
+
+enum IssueType {
+  bug
+  feature_request
+  technical_issue
+  billing_issue
+  general_feedback
+  urgent
+}
+
+enum IssuePriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum IssueStatus {
+  open
+  in_progress
+  resolved
+  closed
+  duplicate
+}
+
+model UserIssue {
+  id          String        @id @default(uuid())
+  title       String
+  description String
+  type        IssueType
+  priority    IssuePriority @default(medium)
+  status      IssueStatus   @default(open)
+  
+  // Reporter information
+  reporterId String
+  reporter   User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  
+  // Clinic context (optional - for clinic-specific issues)
+  clinicId   String?
+  clinic     Clinic?       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  
+  // Additional context
+  browserInfo    String?  // Browser/device info
+  url            String?  // Page where issue occurred
+  steps          String?  // Steps to reproduce
+  expectedResult String?  // What should happen
+  actualResult   String?  // What actually happened
+  attachments    String[] @default([]) // File URLs/paths
+  
+  // Admin response
+  adminResponse String?
+  adminId       String?
+  admin         User?     @relation("AdminResponse", fields: [adminId], references: [id])
+  resolvedAt    DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([reporterId])
+  @@index([clinicId])
+  @@index([status])
+  @@index([type])
+  @@index([priority])
 }

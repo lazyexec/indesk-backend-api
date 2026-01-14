@@ -10,20 +10,38 @@ const connectIntegration = {
   }),
 };
 
-const disconnectIntegration = {
-  body: Joi.object().keys({
+const disconnectIntegrationByType = {
+  params: Joi.object().keys({
     type: Joi.string()
       .valid(...Object.values(IntegrationType))
       .required(),
   }),
 };
 
-const updateIntegrationSettings = {
-  body: Joi.object().keys({
+const updateIntegrationConfig = {
+  params: Joi.object().keys({
     type: Joi.string()
       .valid(...Object.values(IntegrationType))
       .required(),
+  }),
+  body: Joi.object().keys({
     config: Joi.object().required(),
+  }),
+};
+
+const checkIntegrationHealth = {
+  params: Joi.object().keys({
+    type: Joi.string()
+      .valid(...Object.values(IntegrationType))
+      .required(),
+  }),
+};
+
+const getSetupGuide = {
+  params: Joi.object().keys({
+    type: Joi.string()
+      .valid(...Object.values(IntegrationType))
+      .required(),
   }),
 };
 
@@ -44,13 +62,16 @@ const handleOAuthCallback = {
   query: Joi.object().keys({
     code: Joi.string().required(),
     state: Joi.string().required(),
+    error: Joi.string().optional(),
   }),
 };
 
 export default {
   connectIntegration,
-  disconnectIntegration,
-  updateIntegrationSettings,
+  disconnectIntegration: disconnectIntegrationByType,
+  updateIntegrationConfig,
   getOAuthUrl,
   handleOAuthCallback,
+  checkIntegrationHealth,
+  getSetupGuide,
 };

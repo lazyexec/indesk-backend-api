@@ -99,7 +99,39 @@ ${customMessage ? "" : "Thank you!"}
     subject: `Assessment: ${assessmentTitle}`,
     text: emailText,
   });
-  logger.info(`Sending assessment email to ${to} for assessment: ${assessmentTitle}`);
+  logger.info(
+    `Sending assessment email to ${to} for assessment: ${assessmentTitle}`
+  );
+};
+
+const sendPaymentLinkEmail = async (
+  to: string,
+  paymentLink: string,
+  appointmentDetails: any
+) => {
+  const emailText = `
+Hello ${appointmentDetails.clientName},
+
+Your appointment for "${appointmentDetails.sessionName}" has been scheduled.
+
+Date: ${appointmentDetails.date}
+Time: ${appointmentDetails.time}
+Clinician: ${appointmentDetails.clinicianName || "your clinician"}
+
+Price: $${appointmentDetails.price}
+
+Please complete the payment to confirm your appointment by clicking the link below:
+${paymentLink}
+
+Thank you!
+  `;
+
+  await sendMail({
+    to,
+    subject: `Payment Required: ${appointmentDetails.sessionName}`,
+    text: emailText,
+  });
+  logger.info(`Sending payment link email to ${to}`);
 };
 
 export default {
@@ -109,4 +141,5 @@ export default {
   sendUnrestrictedEmail,
   sendWelcomeEmail,
   sendAssessmentEmail,
+  sendPaymentLinkEmail,
 };

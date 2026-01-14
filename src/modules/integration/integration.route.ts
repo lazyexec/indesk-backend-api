@@ -2,45 +2,28 @@ import express, { Router } from "express";
 import integrationController from "./integration.controller";
 import validate from "../../middlewares/validate";
 import integrationValidation from "./integration.validation";
-import auth from "../../middlewares/auth";
+import { authWithIntegrations } from "../../middlewares/authWithSubscription";
 
 const router: Router = express.Router();
 
 // Get all integrations
 router.get(
   "/",
-  auth("commonAdmin", "clinician_integrations"),
+  authWithIntegrations("commonAdmin", "clinician_integrations"),
   integrationController.getIntegrations
 );
 
-// Connect integration
-router.post(
-  "/connect",
-  auth("commonAdmin", "clinician_integrations"),
-  validate(integrationValidation.connectIntegration),
-  integrationController.connectIntegration
-);
-
-// Disconnect integration
-router.post(
-  "/disconnect",
-  auth("commonAdmin", "clinician_integrations"),
-  validate(integrationValidation.disconnectIntegration),
-  integrationController.disconnectIntegration
-);
-
-// Update integration settings
-router.put(
-  "/settings",
-  auth("commonAdmin", "clinician_integrations"),
-  validate(integrationValidation.updateIntegrationSettings),
-  integrationController.updateIntegrationSettings
+// Get integration setup guide (no auth required for setup info)
+router.get(
+  "/setup/:type",
+  validate(integrationValidation.getSetupGuide),
+  integrationController.getIntegrationSetupGuide
 );
 
 // Get OAuth URL for integration
 router.get(
   "/oauth/:type",
-  auth("commonAdmin", "clinician_integrations"),
+  authWithIntegrations("commonAdmin", "clinician_integrations"),
   validate(integrationValidation.getOAuthUrl),
   integrationController.getOAuthUrl
 );
@@ -50,6 +33,30 @@ router.get(
   "/oauth/callback/:type",
   validate(integrationValidation.handleOAuthCallback),
   integrationController.handleOAuthCallback
+);
+
+// Update integration configuration
+router.put(
+  "/:type/config",
+  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  validate(integrationValidation.updateIntegrationConfig),
+  integrationController.updateIntegrationConfig
+);
+
+// Disconnect integration
+router.delete(
+  "/:type",
+  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  validate(integrationValidation.disconnectIntegration),
+  integrationController.disconnectIntegration
+);
+
+// Check integration health
+router.get(
+  "/:type/health",
+  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  validate(integrationValidation.checkIntegrationHealth),
+  integrationController.checkIntegrationHealth
 );
 
 export default router;

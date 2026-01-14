@@ -12,7 +12,7 @@ import {
 } from "./integration.metadata";
 
 /**
- * Get all integrations for a clinic with metadata
+ * Get all integrations for a clinic with metadata and health status
  * @param {string} clinicId
  * @returns {Promise<any[]>}
  */
@@ -24,217 +24,48 @@ const getIntegrations = async (clinicId: string) => {
   // Get all integration metadata
   const allMetadata = getAllIntegrationMetadata();
 
-  return allMetadata.map((metadata) => {
-    const existing = integrations.find((i) => i.type === metadata.type);
-    return {
-      id: existing?.id || null,
-      type: metadata.type,
-      name: metadata.name,
-      description: metadata.description,
-      icon: metadata.icon,
-      category: metadata.category,
-      status: existing?.status || IntegrationStatus.disconnected,
-      config: existing?.config || null,
-      requiresOAuth: metadata.requiresOAuth,
-      oauthUrl: metadata.oauthUrl || null,
-      configSchema: metadata.configSchema || null,
-      updatedAt: existing?.updatedAt || null,
-      createdAt: existing?.createdAt || null,
-    };
-  });
-};
+  const integrationsWithHealth = await Promise.all(
+    allMetadata.map(async (metadata) => {
+      const existing = integrations.find((i) => i.type === metadata.type);
+      let healthStatus = null;
+      let lastHealthCheck = null;
 
-/**
- * Connect or update an integration
- * @param {string} clinicId
- * @param {IntegrationType} type
- * @param {any} config
- * @returns {Promise<any>}
- */
-const connectIntegration = async (
-  clinicId: string,
-  type: IntegrationType,
-  config: any
-) => {
-  // Validate config based on integration type
-  validateIntegrationConfig(type, config);
-
-  const integration = await prisma.integration.upsert({
-    where: {
-      clinicId_type: {
-        clinicId,
-        type,
-      },
-    },
-    update: {
-      status: IntegrationStatus.connected,
-      config,
-    },
-    create: {
-      clinicId,
-      type,
-      status: IntegrationStatus.connected,
-      config,
-    },
-  });
-
-  const metadata = getIntegrationMetadata(type);
-
-  return {
-    ...integration,
-    name: metadata.name,
-    description: metadata.description,
-    icon: metadata.icon,
-    category: metadata.category,
-  };
-};
-
-/**
- * Validate integration config based on type
- * @param {IntegrationType} type
- * @param {any} config
- */
-const validateIntegrationConfig = (type: IntegrationType, config: any) => {
-  if (!config || typeof config !== "object") {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Invalid configuration provided"
-    );
-  }
-
-  const metadata = getIntegrationMetadata(type);
-
-  if (metadata.configSchema) {
-    for (const field of metadata.configSchema.fields) {
-      if (field.required && !config[field.key]) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          `${field.label} is required for ${metadata.name} integration`
-        );
+      // Check health for connected integrations
+      if (existing && existing.status === IntegrationStatus.connected) {
+        try {
+          const health = await checkIntegrationHealth(clinicId, metadata.type);
+          healthStatus = health.status;
+          lastHealthCheck = health.lastChecked;
+        } catch (error) {
+          healthStatus = 'error';
+          lastHealthCheck = new Date();
+        }
       }
-    }
-  }
 
-  // Type-specific validation
-  switch (type) {
-    case "stripe":
-      if (config.secretKey && !config.secretKey.startsWith("sk_")) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          "Invalid Stripe secret key format"
-        );
-      }
-      break;
-    case "mailchimp":
-      if (config.serverPrefix && !/^[a-z]{2}\d+$/.test(config.serverPrefix)) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          "Invalid Mailchimp server prefix format (e.g., us1, us2)"
-        );
-      }
-      break;
-    case "whatsapp":
-      if (config.phoneNumberId && !/^\d+$/.test(config.phoneNumberId)) {
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          "Invalid WhatsApp Phone Number ID format"
-        );
-      }
-      break;
-  }
-};
+      return {
+        id: existing?.id || null,
+        type: metadata.type,
+        name: metadata.name,
+        description: metadata.description,
+        icon: metadata.icon,
+        category: metadata.category,
+        status: existing?.status || IntegrationStatus.disconnected,
+        config: existing?.config || null,
+        isConfigured: existing?.isConfigured || false,
+        requiresOAuth: metadata.requiresOAuth,
+        oauthUrl: metadata.oauthUrl || null,
+        configSchema: metadata.configSchema || null,
+        healthStatus,
+        lastHealthCheck,
+        updatedAt: existing?.updatedAt || null,
+        createdAt: existing?.createdAt || null,
+        setupSteps: metadata.setupSteps || [],
+        requiredEnvVars: metadata.requiredEnvVars || [],
+      };
+    })
+  );
 
-/**
- * Disconnect an integration
- * @param {string} clinicId
- * @param {IntegrationType} type
- * @returns {Promise<any>}
- */
-const disconnectIntegration = async (
-  clinicId: string,
-  type: IntegrationType
-) => {
-  const integration = await prisma.integration.update({
-    where: {
-      clinicId_type: {
-        clinicId,
-        type,
-      },
-    },
-    data: {
-      status: IntegrationStatus.disconnected,
-      config: Prisma.JsonNull, // Clear config on disconnect using Prisma's null type
-    },
-  });
-
-  const metadata = getIntegrationMetadata(type);
-
-  return {
-    ...integration,
-    name: metadata.name,
-    description: metadata.description,
-    icon: metadata.icon,
-    category: metadata.category,
-  };
-};
-
-/**
- * Update integration settings
- * @param {string} clinicId
- * @param {IntegrationType} type
- * @param {any} config
- * @returns {Promise<any>}
- */
-const updateIntegrationSettings = async (
-  clinicId: string,
-  type: IntegrationType,
-  config: any
-) => {
-  // Check if integration exists and is connected
-  const existing = await prisma.integration.findUnique({
-    where: {
-      clinicId_type: {
-        clinicId,
-        type,
-      },
-    },
-  });
-
-  if (!existing || existing.status !== IntegrationStatus.connected) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Integration is not connected. Please connect it first."
-    );
-  }
-
-  // Validate config
-  validateIntegrationConfig(type, config);
-
-  // Merge with existing config
-  const existingConfig = (existing.config as any) || {};
-  const mergedConfig = { ...existingConfig, ...config };
-
-  const integration = await prisma.integration.update({
-    where: {
-      clinicId_type: {
-        clinicId,
-        type,
-      },
-    },
-    data: {
-      config: mergedConfig,
-    },
-  });
-
-  const metadata = getIntegrationMetadata(type);
-
-  return {
-    ...integration,
-    name: metadata.name,
-    description: metadata.description,
-    icon: metadata.icon,
-    category: metadata.category,
-  };
+  return integrationsWithHealth;
 };
 
 /**
@@ -286,6 +117,34 @@ const getOAuthUrl = async (clinicId: string, type: IntegrationType) => {
         xeroRedirectUri
       )}&scope=${encodeURIComponent(
         "accounting.transactions accounting.settings"
+      )}&state=${state}`;
+
+    case "stripe":
+      // Stripe Connect OAuth URL
+      const stripeClientId = process.env.STRIPE_CONNECT_CLIENT_ID;
+      if (!stripeClientId) {
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          "Stripe Connect client ID not configured"
+        );
+      }
+      const stripeRedirectUri = `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/stripe`;
+      return `https://connect.stripe.com/oauth/authorize?response_type=code&client_id=${stripeClientId}&scope=read_write&redirect_uri=${encodeURIComponent(
+        stripeRedirectUri
+      )}&state=${state}`;
+
+    case "mailchimp":
+      // Mailchimp OAuth URL
+      const mailchimpClientId = process.env.MAILCHIMP_CLIENT_ID;
+      if (!mailchimpClientId) {
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          "Mailchimp client ID not configured"
+        );
+      }
+      const mailchimpRedirectUri = `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/mailchimp`;
+      return `https://login.mailchimp.com/oauth2/authorize?response_type=code&client_id=${mailchimpClientId}&redirect_uri=${encodeURIComponent(
+        mailchimpRedirectUri
       )}&state=${state}`;
 
     default:
@@ -415,6 +274,71 @@ const handleOAuthCallback = async (
       tokens = await xeroResponse.json();
       break;
 
+    case "stripe":
+      // Exchange Stripe Connect OAuth code for tokens
+      if (!process.env.STRIPE_CONNECT_CLIENT_ID) {
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          "Stripe Connect credentials not configured"
+        );
+      }
+      const stripeResponse = await fetch(
+        "https://connect.stripe.com/oauth/token",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            code,
+            client_secret: process.env.STRIPE_CONNECT_CLIENT_ID,
+            grant_type: "authorization_code",
+          }),
+        }
+      );
+      if (!stripeResponse.ok) {
+        const error: any = await stripeResponse.json();
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          error.error_description || "Failed to exchange Stripe OAuth code"
+        );
+      }
+      tokens = await stripeResponse.json();
+      break;
+
+    case "mailchimp":
+      // Exchange Mailchimp OAuth code for tokens
+      if (
+        !process.env.MAILCHIMP_CLIENT_ID ||
+        !process.env.MAILCHIMP_CLIENT_SECRET
+      ) {
+        throw new ApiError(
+          httpStatus.INTERNAL_SERVER_ERROR,
+          "Mailchimp OAuth credentials not configured"
+        );
+      }
+      const mailchimpResponse = await fetch(
+        "https://login.mailchimp.com/oauth2/token",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "authorization_code",
+            client_id: process.env.MAILCHIMP_CLIENT_ID,
+            client_secret: process.env.MAILCHIMP_CLIENT_SECRET,
+            redirect_uri: `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/mailchimp`,
+            code,
+          }),
+        }
+      );
+      if (!mailchimpResponse.ok) {
+        const error: any = await mailchimpResponse.json();
+        throw new ApiError(
+          httpStatus.BAD_REQUEST,
+          error.error || "Failed to exchange Mailchimp OAuth code"
+        );
+      }
+      tokens = await mailchimpResponse.json();
+      break;
+
     default:
       throw new ApiError(
         httpStatus.BAD_REQUEST,
@@ -438,17 +362,352 @@ const handleOAuthCallback = async (
     expiresAt: tokens.expires_in
       ? new Date(Date.now() + tokens.expires_in * 1000)
       : null,
+    // Store additional data based on integration type
+    ...(type === "stripe" && {
+      stripeUserId: tokens.stripe_user_id,
+      stripePublishableKey: tokens.stripe_publishable_key,
+    }),
   };
 
-  return await connectIntegration(clinicId, type, config);
+  // Create or update integration via OAuth
+  const integration = await prisma.integration.upsert({
+    where: {
+      clinicId_type: {
+        clinicId,
+        type,
+      },
+    },
+    update: {
+      status: IntegrationStatus.connected,
+      config,
+    },
+    create: {
+      clinicId,
+      type,
+      status: IntegrationStatus.connected,
+      config,
+    },
+  });
+
+  const metadata = getIntegrationMetadata(type);
+
+  return {
+    ...integration,
+    name: metadata.name,
+    description: metadata.description,
+    icon: metadata.icon,
+    category: metadata.category,
+  };
+};
+
+/**
+ * Check integration health and connectivity
+ * @param {string} clinicId
+ * @param {IntegrationType} type
+ * @returns {Promise<{status: string, lastChecked: Date, details?: any}>}
+ */
+const checkIntegrationHealth = async (clinicId: string, type: IntegrationType) => {
+  const integration = await prisma.integration.findUnique({
+    where: {
+      clinicId_type: {
+        clinicId,
+        type,
+      },
+    },
+  });
+
+  if (!integration || integration.status !== IntegrationStatus.connected) {
+    return {
+      status: 'disconnected',
+      lastChecked: new Date(),
+    };
+  }
+
+  const config = integration.config as any;
+  let healthStatus = 'healthy';
+  let details: any = {};
+
+  try {
+    switch (type) {
+      case 'google_calendar':
+        // Check Google Calendar API access
+        if (config.accessToken) {
+          const response = await fetch(
+            'https://www.googleapis.com/calendar/v3/calendars/primary',
+            {
+              headers: {
+                Authorization: `Bearer ${config.accessToken}`,
+              },
+            }
+          );
+          if (!response.ok) {
+            healthStatus = 'error';
+            details.error = 'Failed to access Google Calendar API';
+          }
+        }
+        break;
+
+      case 'stripe':
+        // Check Stripe account status
+        if (config.stripeUserId) {
+          // Note: In production, you'd use Stripe SDK to check account status
+          details.accountId = config.stripeUserId;
+          details.publishableKey = config.stripePublishableKey ? 'configured' : 'missing';
+        }
+        break;
+
+      case 'zoom':
+        // Check Zoom API access
+        if (config.accessToken) {
+          const response = await fetch('https://api.zoom.us/v2/users/me', {
+            headers: {
+              Authorization: `Bearer ${config.accessToken}`,
+            },
+          });
+          if (!response.ok) {
+            healthStatus = 'error';
+            details.error = 'Failed to access Zoom API';
+          }
+        }
+        break;
+
+      case 'mailchimp':
+        // Check Mailchimp API access
+        if (config.accessToken) {
+          const response = await fetch('https://us1.api.mailchimp.com/3.0/lists', {
+            headers: {
+              Authorization: `Bearer ${config.accessToken}`,
+            },
+          });
+          if (!response.ok) {
+            healthStatus = 'error';
+            details.error = 'Failed to access Mailchimp API';
+          }
+        }
+        break;
+
+      case 'xero':
+        // Check Xero API access
+        if (config.accessToken) {
+          const response = await fetch('https://api.xero.com/api.xro/2.0/Organisation', {
+            headers: {
+              Authorization: `Bearer ${config.accessToken}`,
+            },
+          });
+          if (!response.ok) {
+            healthStatus = 'error';
+            details.error = 'Failed to access Xero API';
+          }
+        }
+        break;
+    }
+
+    // Check token expiration
+    if (config.expiresAt && new Date(config.expiresAt) < new Date()) {
+      healthStatus = 'expired';
+      details.tokenExpired = true;
+    }
+
+  } catch (error: any) {
+    healthStatus = 'error';
+    details.error = error.message;
+  }
+
+  return {
+    status: healthStatus,
+    lastChecked: new Date(),
+    details,
+  };
+};
+
+/**
+ * Validate integration configuration
+ * @param {IntegrationType} type
+ * @param {any} config
+ * @returns {Promise<{isValid: boolean, errors: string[]}>}
+ */
+const validateIntegrationConfig = async (type: IntegrationType, config: any) => {
+  const metadata = getIntegrationMetadata(type);
+  const errors: string[] = [];
+
+  if (!metadata.configSchema) {
+    return { isValid: true, errors: [] };
+  }
+
+  // Validate required fields
+  for (const field of metadata.configSchema.fields) {
+    if (field.required && (!config[field.key] || config[field.key].trim() === '')) {
+      errors.push(`${field.label} is required`);
+    }
+
+    // Validate field types and formats
+    if (config[field.key]) {
+      switch (field.type) {
+        case 'select':
+          if (field.options && !field.options.includes(config[field.key])) {
+            errors.push(`${field.label} must be one of: ${field.options.join(', ')}`);
+          }
+          break;
+      }
+    }
+  }
+
+  // Type-specific validation
+  switch (type) {
+    case 'google_calendar':
+      if (config.calendarId && !config.calendarId.includes('@')) {
+        errors.push('Calendar ID should be in format: calendar@gmail.com or calendar@group.calendar.google.com');
+      }
+      break;
+
+    case 'stripe':
+      if (config.stripeUserId && !config.stripeUserId.startsWith('acct_')) {
+        errors.push('Stripe User ID should start with "acct_"');
+      }
+      break;
+
+    case 'zoom':
+      if (config.accountId && config.accountId.length < 10) {
+        errors.push('Zoom Account ID should be at least 10 characters');
+      }
+      break;
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
+/**
+ * Update integration configuration
+ * @param {string} clinicId
+ * @param {IntegrationType} type
+ * @param {any} config
+ * @returns {Promise<any>}
+ */
+const updateIntegrationConfig = async (
+  clinicId: string,
+  type: IntegrationType,
+  config: any
+) => {
+  // Validate configuration
+  const validation = await validateIntegrationConfig(type, config);
+  if (!validation.isValid) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `Configuration validation failed: ${validation.errors.join(', ')}`
+    );
+  }
+
+  // Update integration
+  const integration = await prisma.integration.upsert({
+    where: {
+      clinicId_type: {
+        clinicId,
+        type,
+      },
+    },
+    update: {
+      config,
+      isConfigured: true,
+      updatedAt: new Date(),
+    },
+    create: {
+      clinicId,
+      type,
+      status: IntegrationStatus.disconnected,
+      config,
+      isConfigured: true,
+    },
+  });
+
+  const metadata = getIntegrationMetadata(type);
+
+  return {
+    ...integration,
+    name: metadata.name,
+    description: metadata.description,
+    icon: metadata.icon,
+    category: metadata.category,
+  };
+};
+
+/**
+ * Disconnect integration
+ * @param {string} clinicId
+ * @param {IntegrationType} type
+ * @returns {Promise<any>}
+ */
+const disconnectIntegration = async (clinicId: string, type: IntegrationType) => {
+  const integration = await prisma.integration.findUnique({
+    where: {
+      clinicId_type: {
+        clinicId,
+        type,
+      },
+    },
+  });
+
+  if (!integration) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Integration not found");
+  }
+
+  // Update status to disconnected but keep configuration
+  const updatedIntegration = await prisma.integration.update({
+    where: {
+      clinicId_type: {
+        clinicId,
+        type,
+      },
+    },
+    data: {
+      status: IntegrationStatus.disconnected,
+      config: {}, // Clear sensitive data
+      updatedAt: new Date(),
+    },
+  });
+
+  const metadata = getIntegrationMetadata(type);
+
+  return {
+    ...updatedIntegration,
+    name: metadata.name,
+    description: metadata.description,
+    icon: metadata.icon,
+    category: metadata.category,
+  };
+};
+
+/**
+ * Get integration setup guide
+ * @param {IntegrationType} type
+ * @returns {any}
+ */
+const getIntegrationSetupGuide = (type: IntegrationType) => {
+  const metadata = getIntegrationMetadata(type);
+  
+  return {
+    type,
+    name: metadata.name,
+    description: metadata.description,
+    icon: metadata.icon,
+    category: metadata.category,
+    requiresOAuth: metadata.requiresOAuth,
+    setupSteps: metadata.setupSteps || [],
+    configSchema: metadata.configSchema,
+    requiredEnvVars: metadata.requiredEnvVars || [],
+    documentation: metadata.documentation || null,
+  };
 };
 
 export default {
   getIntegrations,
-  connectIntegration,
-  disconnectIntegration,
-  updateIntegrationSettings,
   getOAuthUrl,
   handleOAuthCallback,
+  checkIntegrationHealth,
   validateIntegrationConfig,
+  updateIntegrationConfig,
+  disconnectIntegration,
+  getIntegrationSetupGuide,
 };

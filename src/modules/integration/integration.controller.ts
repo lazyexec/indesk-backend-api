@@ -24,84 +24,6 @@ const getIntegrations = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
-const connectIntegration = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user!.id as string;
-  const clinicId = await clinicService.getClinicIdByUserId(userId);
-  if (!clinicId) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found for this user");
-  }
-
-  const { type, config } = req.body;
-  const integration = await integrationService.connectIntegration(
-    clinicId,
-    type,
-    config
-  );
-
-  res.status(httpStatus.OK).json(
-    response({
-      status: httpStatus.OK,
-      message: `${type} connected successfully`,
-      data: integration,
-    })
-  );
-});
-
-const disconnectIntegration = catchAsync(
-  async (req: Request, res: Response) => {
-    const userId = req.user!.id as string;
-    const clinicId = await clinicService.getClinicIdByUserId(userId);
-    if (!clinicId) {
-      throw new ApiError(
-        httpStatus.NOT_FOUND,
-        "Clinic not found for this user"
-      );
-    }
-
-    const { type } = req.body;
-    const integration = await integrationService.disconnectIntegration(
-      clinicId,
-      type
-    );
-
-    res.status(httpStatus.OK).json(
-      response({
-        status: httpStatus.OK,
-        message: `${type} disconnected successfully`,
-        data: integration,
-      })
-    );
-  }
-);
-
-const updateIntegrationSettings = catchAsync(
-  async (req: Request, res: Response) => {
-    const userId = req.user!.id as string;
-    const clinicId = await clinicService.getClinicIdByUserId(userId);
-    if (!clinicId) {
-      throw new ApiError(
-        httpStatus.NOT_FOUND,
-        "Clinic not found for this user"
-      );
-    }
-
-    const { type, config } = req.body;
-    const integration = await integrationService.updateIntegrationSettings(
-      clinicId,
-      type,
-      config
-    );
-
-    res.status(httpStatus.OK).json(
-      response({
-        status: httpStatus.OK,
-        message: `${type} settings updated successfully`,
-        data: integration,
-      })
-    );
-  }
-);
-
 const getOAuthUrl = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user!.id as string;
   const clinicId = await clinicService.getClinicIdByUserId(userId);
@@ -165,11 +87,97 @@ const handleOAuthCallback = catchAsync(async (req: Request, res: Response) => {
   }
 });
 
+const updateIntegrationConfig = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user!.id as string;
+  const clinicId = await clinicService.getClinicIdByUserId(userId);
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found for this user");
+  }
+
+  const { type } = req.params;
+  const { config } = req.body;
+
+  const integration = await integrationService.updateIntegrationConfig(
+    clinicId,
+    type as any,
+    config
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Integration configuration updated successfully",
+      data: integration,
+    })
+  );
+});
+
+const disconnectIntegration = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user!.id as string;
+  const clinicId = await clinicService.getClinicIdByUserId(userId);
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found for this user");
+  }
+
+  const { type } = req.params;
+
+  const integration = await integrationService.disconnectIntegration(
+    clinicId,
+    type as any
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Integration disconnected successfully",
+      data: integration,
+    })
+  );
+});
+
+const checkIntegrationHealth = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.user!.id as string;
+  const clinicId = await clinicService.getClinicIdByUserId(userId);
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found for this user");
+  }
+
+  const { type } = req.params;
+
+  const health = await integrationService.checkIntegrationHealth(
+    clinicId,
+    type as any
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Integration health checked successfully",
+      data: health,
+    })
+  );
+});
+
+const getIntegrationSetupGuide = catchAsync(async (req: Request, res: Response) => {
+  const { type } = req.params;
+
+  const guide = integrationService.getIntegrationSetupGuide(type as any);
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Integration setup guide retrieved successfully",
+      data: guide,
+    })
+  );
+});
+
 export default {
   getIntegrations,
-  connectIntegration,
-  disconnectIntegration,
-  updateIntegrationSettings,
   getOAuthUrl,
   handleOAuthCallback,
+  updateIntegrationConfig,
+  disconnectIntegration,
+  checkIntegrationHealth,
+  getIntegrationSetupGuide,
 };

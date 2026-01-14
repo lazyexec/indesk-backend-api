@@ -2,6 +2,7 @@ import { IClient } from "./client.interface";
 import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
+import limitService from "../subscription/limit.service";
 
 const createClient = async (
   userId: string,
@@ -25,6 +26,9 @@ const createClient = async (
     clinicId,
     assignedClinicianId,
   } = clientBody;
+
+  // Check client limit before creating
+  await limitService.enforceClientLimit(clinicId);
 
   const clientExists = await prisma.client.findFirst({
     where: { email },
@@ -168,16 +172,20 @@ const getClientById = async (id: string) => {
       },
       addedByUser: {
         select: {
-          id: true,
-          avatar: true,
-          firstName: true,
-          lastName: true,
-          email: true,
+          user: {
+            select: {
+              id: true,
+              avatar: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
         },
       },
       appointments: true,
       notes: true,
-      assessments: true,
+      // assessments: true,
       clinic: {
         select: {
           id: true,

@@ -6,6 +6,7 @@ import httpStatus from "http-status";
 import fs from "../../utils/fs";
 import env from "../../configs/env";
 import { Prisma } from "../../../generated/prisma/client";
+import subscriptionService from "../subscription/subscription.service";
 
 const createClinic = async (
   data: Partial<IClinic> & { ownerEmail?: string }
@@ -53,6 +54,16 @@ const createClinic = async (
         members: true, // Include members to confirm creation
       },
     });
+
+    // Assign default subscription (Free plan)
+    try {
+      await subscriptionService.assignDefaultSubscription(clinic.id);
+    } catch (subscriptionError) {
+      console.error('Failed to assign default subscription:', subscriptionError);
+      // Don't fail clinic creation if subscription assignment fails
+      // This can be handled later or retried
+    }
+
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {

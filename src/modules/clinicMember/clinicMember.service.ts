@@ -16,6 +16,17 @@ const generateRandomPassword = (): string => {
   return password;
 };
 
+const generateRandomToken = (): string => {
+  const length = 12;
+  const charset =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let token = "";
+  for (let i = 0; i < length; i++) {
+    token += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return token;
+};
+
 const addClinicMember = async (
   actorId: string,
   clinicId: string,
@@ -125,6 +136,7 @@ const addClinicMember = async (
       role: role,
       availability: availability || [],
       specialization: specialization || [],
+      clinicianToken: generateRandomToken(),
       clinic: {
         connect: { id: clinicId },
       },

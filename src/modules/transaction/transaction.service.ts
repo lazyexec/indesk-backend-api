@@ -56,8 +56,35 @@ const deleteTransaction = async (id: string) => {
   });
 };
 
+const createTransaction = async (data: {
+  clientId: string;
+  sessionId: string;
+  amount: number;
+  method: string;
+  description: string;
+  type: string;
+  status: string;
+  meta: any;
+}) => {
+  const transaction = await prisma.transaction.create({
+    data: {
+      clientId: data.clientId,
+      sessionId: data.sessionId,
+      amount: data.amount,
+      status: data.status || "pending",
+      type: data.type,
+      method: data.method,
+      description: data.description,
+      meta: data.meta,
+    },
+  });
+  return transaction;
+};
+
+
 export default {
   getAllTransactions,
   getTransaction,
   deleteTransaction,
+  createTransaction,
 };

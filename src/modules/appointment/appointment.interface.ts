@@ -13,6 +13,7 @@ export interface IAppointment {
   zoomJoinUrl?: string;
   zoomStartUrl?: string;
   zoomMeetingId?: string;
+  appointmentToken?: string;
   createdAt: Date;
   updatedAt: Date;
 }

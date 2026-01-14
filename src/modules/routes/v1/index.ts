@@ -3,6 +3,7 @@ import authRouter from "../../auth/auth.route";
 import userRouter from "../../user/user.route";
 import settingsRouter from "../../settings/settings.route";
 import clinicRouter from "../../clinic/clinic.route";
+import clinicPurchaseRouter from "../../clinic/clinic-purchase.route";
 import clinicMemberRouter from "../../clinicMember/clinicMember.route";
 import sessionRouter from "../../session/session.route";
 import integrationRouter from "../../integration/integration.route";
@@ -11,6 +12,12 @@ import appointmentRouter from "../../appointment/appointment.route";
 import stripeRouter from "../../stripe/stripe.route";
 import providerRouter from "../../provider/provider.route";
 import assessmentRouter from "../../assessment/assessment.route";
+import invoiceRouter from "../../invoice/invoice.route";
+import subscriptionRouter from "../../subscription/subscription.routes";
+import reportRouter from "../../report/report.routes";
+import analyticsRouter from "../../analytics/analytics.routes";
+import dashboardRouter from "../../dashboard/dashboard.route";
+import issueRouter from "../../issue/issue.route";
 
 const mainRouter: Router = express.Router();
 
@@ -35,6 +42,10 @@ const routes: routeObjects[] = [
   {
     path: "/clinic",
     route: clinicRouter,
+  },
+  {
+    path: "/clinic-purchase",
+    route: clinicPurchaseRouter,
   },
   {
     path: "/clinicMember",
@@ -67,6 +78,30 @@ const routes: routeObjects[] = [
   {
     path: "/assessment",
     route: assessmentRouter,
+  },
+  {
+    path: "/invoice",
+    route: invoiceRouter,
+  },
+  {
+    path: "/subscription",
+    route: subscriptionRouter,
+  },
+  {
+    path: "/report",
+    route: reportRouter,
+  },
+  {
+    path: "/analytics",
+    route: analyticsRouter,
+  },
+  {
+    path: "/dashboard",
+    route: dashboardRouter,
+  },
+  {
+    path: "/issue",
+    route: issueRouter,
   },
 ];
 

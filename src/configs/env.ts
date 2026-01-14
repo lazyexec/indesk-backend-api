@@ -47,6 +47,41 @@ const validator = Joi.object()
     FIREBASE_CLIENT_EMAIL: Joi.string()
       .required()
       .description("Firebase Client Email"),
+    GOOGLE_CLIENT_ID: Joi.string().required().description("Google Client ID"),
+    GOOGLE_CLIENT_SECRET: Joi.string()
+      .required()
+      .description("Google Client Secret"),
+    GOOGLE_REDIRECT_URI: Joi.string()
+      .required()
+      .description("Google Redirect URI"),
+    // Zoom Integration
+    ZOOM_ACCOUNT_ID: Joi.string().optional().description("Zoom Account ID"),
+    ZOOM_CLIENT_ID: Joi.string().optional().description("Zoom Client ID"),
+    ZOOM_CLIENT_SECRET: Joi.string()
+      .optional()
+      .description("Zoom Client Secret"),
+    // Xero Integration
+    XERO_CLIENT_ID: Joi.string().optional().description("Xero Client ID"),
+    XERO_CLIENT_SECRET: Joi.string()
+      .optional()
+      .description("Xero Client Secret"),
+    XERO_REDIRECT_URI: Joi.string().optional().description("Xero Redirect URI"),
+    // Mailchimp Integration
+    MAILCHIMP_API_KEY: Joi.string().optional().description("Mailchimp API Key"),
+    MAILCHIMP_SERVER_PREFIX: Joi.string()
+      .optional()
+      .description("Mailchimp Server Prefix"),
+    // Stripe Connect OAuth
+    STRIPE_CONNECT_CLIENT_ID: Joi.string()
+      .required()
+      .description("Stripe Connect Client ID"),
+    // Mailchimp OAuth
+    MAILCHIMP_CLIENT_ID: Joi.string()
+      .optional()
+      .description("Mailchimp OAuth Client ID"),
+    MAILCHIMP_CLIENT_SECRET: Joi.string()
+      .optional()
+      .description("Mailchimp OAuth Client Secret"),
   })
   .unknown();
 
@@ -92,6 +127,31 @@ const env = {
     privateKey: value.FIREBASE_PRIVATE_KEY
       ? value.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
       : undefined,
+  },
+  GOOGLE_CLIENT_ID: value.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: value.GOOGLE_CLIENT_SECRET,
+  GOOGLE_REDIRECT_URI: value.GOOGLE_REDIRECT_URI,
+  // Integration Services
+  zoom: {
+    accountId: value.ZOOM_ACCOUNT_ID,
+    clientId: value.ZOOM_CLIENT_ID,
+    clientSecret: value.ZOOM_CLIENT_SECRET,
+  },
+  xero: {
+    clientId: value.XERO_CLIENT_ID,
+    clientSecret: value.XERO_CLIENT_SECRET,
+    redirectUri: value.XERO_REDIRECT_URI,
+  },
+  mailchimp: {
+    apiKey: value.MAILCHIMP_API_KEY,
+    serverPrefix: value.MAILCHIMP_SERVER_PREFIX,
+    oauth: {
+      clientId: value.MAILCHIMP_CLIENT_ID,
+      clientSecret: value.MAILCHIMP_CLIENT_SECRET,
+    },
+  },
+  stripeConnect: {
+    clientId: value.STRIPE_CONNECT_CLIENT_ID,
   },
 };
 export default env;
