@@ -73,6 +73,7 @@ const createClinic = async (
         );
       }
     }
+    console.log(error)
     throw new ApiError(httpStatus.BAD_REQUEST, "Unknown error occurred!");
   }
 

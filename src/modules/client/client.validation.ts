@@ -7,7 +7,7 @@ const createClient = {
     email: Joi.string().required(),
     dateOfBirth: Joi.date().optional(),
     gender: Joi.string().optional(),
-    phoneNumber: Joi.number().optional(),
+    phoneNumber: Joi.string().optional(),
     countryCode: Joi.string().when("phoneNumber", {
       is: Joi.exist(),
       then: Joi.required(),
@@ -63,7 +63,7 @@ const updateClient = {
       email: Joi.string().required(),
       dateOfBirth: Joi.date().optional(),
       gender: Joi.string().optional(),
-      phoneNumber: Joi.number().optional(),
+      phoneNumber: Joi.string().optional(),
       countryCode: Joi.string().when("phoneNumber", {
         is: Joi.exist(),
         then: Joi.required(),

@@ -7,7 +7,7 @@ const updateProfile = {
     lastName: Joi.string().trim().optional(),
     avatar: Joi.string().optional(),
     fcmToken: Joi.string().allow(null).optional(),
-    phoneNumber: Joi.number().optional(),
+    phoneNumber: Joi.string().optional(),
     countryCode: Joi.string().when("phoneNumber", {
       is: Joi.exist(),
       then: Joi.required(),
@@ -27,7 +27,7 @@ const queryAllUsers = {
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     name: Joi.string().optional(),
-    phoneNumber: Joi.number().optional(),
+    phoneNumber: Joi.string().optional(),
     countryCode: Joi.string().when("phoneNumber", {
       is: Joi.exist(),
       then: Joi.required(),

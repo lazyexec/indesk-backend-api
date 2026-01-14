@@ -7,7 +7,7 @@ export interface IUser {
   password?: string | null;
   role: any;
   fcmToken?: string | null;
-  phoneNumber?: number | null;
+  phoneNumber?: string | null;
   countryCode?: string | null;
   oneTimeCode?: string | null;
   oneTimeCodeExpires?: Date | null;

@@ -3,7 +3,7 @@ import authRouter from "../../auth/auth.route";
 import userRouter from "../../user/user.route";
 import settingsRouter from "../../settings/settings.route";
 import clinicRouter from "../../clinic/clinic.route";
-import clinicPurchaseRouter from "../../clinic/clinic-purchase.route";
+import plansRouter from "../../plans/plans.route";
 import clinicMemberRouter from "../../clinicMember/clinicMember.route";
 import sessionRouter from "../../session/session.route";
 import integrationRouter from "../../integration/integration.route";
@@ -44,8 +44,8 @@ const routes: routeObjects[] = [
     route: clinicRouter,
   },
   {
-    path: "/clinic-purchase",
-    route: clinicPurchaseRouter,
+    path: "/plans",
+    route: plansRouter,
   },
   {
     path: "/clinicMember",

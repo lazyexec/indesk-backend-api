@@ -1,7 +1,7 @@
 import catchAsync from "../../utils/catchAsync";
 import type { Request, Response } from "express";
 import httpStatus from "http-status";
-import clinicPurchaseService from "./clinic-purchase.service";
+import plansService from "./plans.service";
 import response from "../../utils/response";
 import pick from "../../utils/pick";
 
@@ -9,7 +9,7 @@ import pick from "../../utils/pick";
  * Get available plans for clinic purchase
  */
 const getAvailablePlans = catchAsync(async (req: Request, res: Response) => {
-  const plans = await clinicPurchaseService.getAvailablePlans();
+  const plans = await plansService.getAvailablePlans();
   
   res.status(httpStatus.OK).json(
     response({
@@ -26,7 +26,7 @@ const getAvailablePlans = catchAsync(async (req: Request, res: Response) => {
 const getPurchaseStatus = catchAsync(async (req: Request, res: Response) => {
   const userId: string = req.user?.id!;
   
-  const status = await clinicPurchaseService.getPurchaseStatus(userId);
+  const status = await plansService.getPurchaseStatus(userId);
   
   res.status(httpStatus.OK).json(
     response({
@@ -53,7 +53,7 @@ const initiatePurchase = catchAsync(async (req: Request, res: Response) => {
     "startTrial"
   ]);
   
-  const result = await clinicPurchaseService.initiatePurchase(userId, purchaseData);
+  const result = await plansService.initiatePurchase(userId, purchaseData);
   
   res.status(httpStatus.OK).json(
     response({
@@ -70,7 +70,7 @@ const initiatePurchase = catchAsync(async (req: Request, res: Response) => {
 const completePurchase = catchAsync(async (req: Request, res: Response) => {
   const { paymentIntentId } = req.body;
   
-  const result = await clinicPurchaseService.completePurchase(paymentIntentId);
+  const result = await plansService.completePurchase(paymentIntentId);
   
   res.status(httpStatus.OK).json(
     response({
@@ -88,7 +88,7 @@ const completeFreePurchase = catchAsync(async (req: Request, res: Response) => {
   const userId: string = req.user?.id!;
   const { clinicId, planId } = req.body;
   
-  const result = await clinicPurchaseService.completeFreePurchase(userId, clinicId, planId);
+  const result = await plansService.completeFreePurchase(userId, clinicId, planId);
   
   res.status(httpStatus.OK).json(
     response({
@@ -106,7 +106,7 @@ const cancelPurchase = catchAsync(async (req: Request, res: Response) => {
   const userId: string = req.user?.id!;
   const { clinicId } = req.params;
   
-  await clinicPurchaseService.cancelPurchase(userId, clinicId);
+  await plansService.cancelPurchase(userId, clinicId);
   
   res.status(httpStatus.OK).json(
     response({

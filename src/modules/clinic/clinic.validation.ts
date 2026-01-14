@@ -5,7 +5,7 @@ const createClinic = {
     name: Joi.string().required().min(2).max(100),
     ownerEmail: Joi.string().email().required(),
     email: Joi.string().email().optional(),
-    phoneNumber: Joi.number().optional(),
+    phoneNumber: Joi.string().optional(),
     countryCode: Joi.string().when("phoneNumber", {
       is: Joi.exist(),
       then: Joi.required(),
@@ -35,7 +35,7 @@ const updateClinic = {
   body: Joi.object().keys({
     name: Joi.string().min(2).max(100).optional(),
     email: Joi.string().email().optional(),
-    phoneNumber: Joi.number().optional(),
+    phoneNumber: Joi.string().optional(),
     countryCode: Joi.string().when("phoneNumber", {
       is: Joi.exist(),
       then: Joi.required(),

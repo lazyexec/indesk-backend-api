@@ -7,11 +7,11 @@ import subscriptionService from "../subscription/subscription.service";
 import planService from "../subscription/plan.service";
 import permissions from "../../configs/permissions";
 
-interface IClinicPurchaseData {
+interface IPurchaseData {
   // Clinic details
   clinicName: string;
   clinicEmail: string;
-  clinicPhone?: number;
+  clinicPhone?: string;
   countryCode?: string;
   address?: {
     street: string;
@@ -32,7 +32,7 @@ interface IClinicPurchaseData {
   startTrial?: boolean;
 }
 
-interface IClinicPurchaseResult {
+interface IPurchaseResult {
   clinic: any;
   subscription: any;
   paymentIntent?: any;
@@ -46,7 +46,7 @@ interface IClinicPurchaseResult {
  */
 const initiatePurchase = async (
   userId: string,
-  purchaseData: IClinicPurchaseData
+  purchaseData: IPurchaseData
 ): Promise<{ clientSecret: string; clinicId: string; planId: string }> => {
   const {
     clinicName,
@@ -124,7 +124,7 @@ const initiatePurchase = async (
  */
 const completePurchase = async (
   paymentIntentId: string
-): Promise<IClinicPurchaseResult> => {
+): Promise<IPurchaseResult> => {
   // Retrieve payment intent from Stripe to get metadata
   const paymentIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
   
@@ -196,7 +196,7 @@ const completeFreePurchase = async (
   userId: string,
   clinicId: string,
   planId: string
-): Promise<IClinicPurchaseResult> => {
+): Promise<IPurchaseResult> => {
   // Get clinic and plan details
   const [clinic, plan] = await Promise.all([
     prisma.clinic.findUnique({ where: { id: clinicId } }),

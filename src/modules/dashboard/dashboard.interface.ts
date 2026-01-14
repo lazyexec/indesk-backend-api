@@ -57,7 +57,7 @@ export interface ICalendarEvent {
     firstName: string;
     lastName: string;
     email: string;
-    phoneNumber?: number;
+    phoneNumber?: string;
   };
   clinician: {
     id: string;

@@ -7,7 +7,7 @@ export interface IClient {
   email: string;
   dateOfBirth: Date;
   gender: "male" | "female" | "other";
-  phoneNumber?: number;
+  phoneNumber?: string;
   countryCode?: string;
   status: any;
   address?: any;

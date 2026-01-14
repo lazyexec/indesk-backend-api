@@ -4,6 +4,8 @@
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
+// TODO: Change Phone Number to String
+
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -107,7 +109,7 @@ model User {
   isResetPassword            Boolean              @default(false)
   isDeleted                  Boolean              @default(false)
   fcmToken                   String?
-  phoneNumber                Int?
+  phoneNumber                String?
   countryCode                String?
   // Status
   isRestricted               Boolean              @default(false)
@@ -148,14 +150,12 @@ model Clinic {
   id          String  @id @default(uuid())
   name        String
   email       String? @unique
-  phoneNumber Int?
+  phoneNumber String?
   countryCode String?
   address     Json?
   logo        String?
   color       String?
   description String?
-  // Simple permission system - JSON object with feature flags
-  // Example: { "clients": true, "sessions": true, "billing": false }
   permissions Json    @default("{}")
 
   // Activation status for purchase flow
@@ -230,7 +230,7 @@ model Client {
   email       String
   dateOfBirth DateTime?
   gender      Gender    @default(male)
-  phoneNumber Int?
+  phoneNumber String?
   countryCode String?
   address     Json?
 

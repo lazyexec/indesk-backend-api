@@ -7,7 +7,7 @@ const addMember = {
     role: Joi.string().valid("admin", "clinician").required(),
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
-    phoneNumber: Joi.number().optional(),
+    phoneNumber: Joi.string().optional(),
     countryCode: Joi.string().when("phoneNumber", {
       is: Joi.exist(),
       then: Joi.required(),
