@@ -41,4 +41,10 @@ router.delete(
   clinicMemberController.removeMember
 );
 
+router.get(
+  "/:token/clinicians",
+  validate(clinicMemberValidation.getClinicianByToken),
+  clinicMemberController.getCliniciansByToken
+);
+
 export default router;

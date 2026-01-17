@@ -125,6 +125,71 @@ const getInvoiceStats = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const sendInvoiceEmail = catchAsync(async (req: Request, res: Response) => {
+  const userId = (req as any).user.id as string;
+  const clinicId = await clinicService.getClinicIdByUserId(userId);
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found for this user");
+  }
+
+  await invoiceService.sendInvoiceEmail(
+    clinicId,
+    req.params.invoiceId,
+    req.body.customMessage
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Invoice email sent successfully",
+      data: null,
+    })
+  );
+});
+
+const getPublicInvoice = catchAsync(async (req: Request, res: Response) => {
+  const invoice = await invoiceService.getInvoiceByPublicToken(
+    req.params.publicToken
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Invoice retrieved successfully",
+      data: invoice,
+    })
+  );
+});
+
+const createInvoicePaymentIntent = catchAsync(async (req: Request, res: Response) => {
+  const paymentIntent = await invoiceService.createInvoicePaymentIntent(
+    req.params.publicToken
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Payment intent created successfully",
+      data: paymentIntent,
+    })
+  );
+});
+
+const confirmInvoicePayment = catchAsync(async (req: Request, res: Response) => {
+  const result = await invoiceService.confirmInvoicePayment(
+    req.params.publicToken,
+    req.body
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: result.message,
+      data: result,
+    })
+  );
+});
+
 export default {
   createInvoice,
   getInvoices,
@@ -132,4 +197,8 @@ export default {
   updateInvoice,
   deleteInvoice,
   getInvoiceStats,
+  sendInvoiceEmail,
+  getPublicInvoice,
+  createInvoicePaymentIntent,
+  confirmInvoicePayment,
 };

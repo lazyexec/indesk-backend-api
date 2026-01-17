@@ -18,6 +18,7 @@ import reportRouter from "../../report/report.routes";
 import analyticsRouter from "../../analytics/analytics.routes";
 import dashboardRouter from "../../dashboard/dashboard.route";
 import issueRouter from "../../issue/issue.route";
+import transactionRouter from "../../transaction/transaction.route";
 
 const mainRouter: Router = express.Router();
 
@@ -102,6 +103,10 @@ const routes: routeObjects[] = [
   {
     path: "/issue",
     route: issueRouter,
+  },
+  {
+    path: "/transaction",
+    route: transactionRouter,
   },
 ];
 

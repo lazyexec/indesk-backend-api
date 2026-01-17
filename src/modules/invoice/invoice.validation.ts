@@ -53,10 +53,40 @@ const deleteInvoice = {
   }),
 };
 
+const sendInvoiceEmail = {
+  params: Joi.object().keys({
+    invoiceId: Joi.string().uuid().required(),
+  }),
+  body: Joi.object().keys({
+    customMessage: Joi.string().optional(),
+  }),
+};
+
+const getPublicInvoice = {
+  params: Joi.object().keys({
+    publicToken: Joi.string().required(),
+  }),
+};
+
+const confirmInvoicePayment = {
+  params: Joi.object().keys({
+    publicToken: Joi.string().required(),
+  }),
+  body: Joi.object().keys({
+    paymentIntentId: Joi.string().required().messages({
+      "any.required": "Payment intent ID is required",
+      "string.empty": "Payment intent ID cannot be empty",
+    }),
+  }),
+};
+
 export default {
   createInvoice,
   getInvoices,
   getInvoice,
   updateInvoice,
   deleteInvoice,
+  sendInvoiceEmail,
+  getPublicInvoice,
+  confirmInvoicePayment,
 };

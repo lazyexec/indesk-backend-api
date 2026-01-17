@@ -51,9 +51,6 @@ const validator = Joi.object()
     GOOGLE_CLIENT_SECRET: Joi.string()
       .required()
       .description("Google Client Secret"),
-    GOOGLE_REDIRECT_URI: Joi.string()
-      .required()
-      .description("Google Redirect URI"),
     // Zoom Integration
     ZOOM_ACCOUNT_ID: Joi.string().optional().description("Zoom Account ID"),
     ZOOM_CLIENT_ID: Joi.string().optional().description("Zoom Client ID"),
@@ -114,9 +111,7 @@ const env = {
     },
     from: value.EMAIL_FROM,
   },
-  // STRIPE ACCOUNT
-  STRIPE_SECRET_KEY: value.STRIPE_SECRET_KEY,
-  STRIPE_WEBHOOK_SECRET: value.STRIPE_WEBHOOK_SECRET,
+
   // URLS
   FRONTEND_URL: value.FRONTEND_URL,
   BACKEND_URL: value.BACKEND_URL,
@@ -128,9 +123,7 @@ const env = {
       ? value.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
       : undefined,
   },
-  GOOGLE_CLIENT_ID: value.GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET: value.GOOGLE_CLIENT_SECRET,
-  GOOGLE_REDIRECT_URI: value.GOOGLE_REDIRECT_URI,
+
   // Integration Services
   zoom: {
     accountId: value.ZOOM_ACCOUNT_ID,
@@ -150,8 +143,17 @@ const env = {
       clientSecret: value.MAILCHIMP_CLIENT_SECRET,
     },
   },
+  stripe: {
+    secretKey: value.STRIPE_SECRET_KEY,
+    webhookSecret: value.STRIPE_WEBHOOK_SECRET,
+  },
   stripeConnect: {
     clientId: value.STRIPE_CONNECT_CLIENT_ID,
   },
+  google: {
+    clientId: value.GOOGLE_CLIENT_ID,
+    clientSecret: value.GOOGLE_CLIENT_SECRET,
+    redirectUri: value.BACKEND_URL + '/api/v1/integration/oauth/callback/google_calendar',
+  }
 };
 export default env;

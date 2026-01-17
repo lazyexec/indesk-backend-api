@@ -14,11 +14,11 @@ const processWebHookStripe = async (event: any) => {
     // Checkout session completed - handle clinic purchase
     case "checkout.session.completed": {
       const session = event.data.object;
-      
+
       // Check if this is a clinic purchase
       if (session.metadata?.purchaseType === "clinic_subscription") {
         const { userId, clinicId, planId } = session.metadata;
-        
+
         try {
           // Get plan details for transaction
           const plan = await prisma.plan.findUnique({
@@ -79,7 +79,7 @@ const processWebHookStripe = async (event: any) => {
           logger.info(`✅ Clinic ${clinicId} activated successfully via checkout`);
         } catch (error: any) {
           logger.error(`Failed to activate clinic ${clinicId}:`, error);
-          
+
           // Create failed transaction record
           try {
             await transactionService.createTransaction({
@@ -101,13 +101,33 @@ const processWebHookStripe = async (event: any) => {
           }
         }
       }
-      
+
       // Handle appointment payments
       const appointmentId = session.metadata?.appointmentId;
+      const appointmentToken = session.metadata?.appointmentToken;
+
       if (appointmentId) {
         try {
           await paymentStateApply(appointmentId, "scheduled");
           logger.info(`Appointment ${appointmentId} marked as paid`);
+        } catch (error: any) {
+          logger.error(
+            `Failed to update appointment payment: ${error.message}`
+          );
+        }
+      } else if (appointmentToken) {
+        try {
+          // Find appointment by token
+          const appointment = await prisma.appointment.findFirst({
+            where: { appointmentToken },
+          });
+
+          if (appointment) {
+            await paymentStateApply(appointment.id, "scheduled");
+            logger.info(`Appointment ${appointment.id} marked as paid via token`);
+          } else {
+            logger.error(`Appointment not found for token: ${appointmentToken}`);
+          }
         } catch (error: any) {
           logger.error(
             `Failed to update appointment payment: ${error.message}`
@@ -118,7 +138,10 @@ const processWebHookStripe = async (event: any) => {
     }
     case "payment_intent.succeeded": {
       const paymentIntent = event.data.object;
+
+      // Handle appointment payments
       const appointmentId = paymentIntent.metadata?.appointmentId;
+      const appointmentToken = paymentIntent.metadata?.appointmentToken;
 
       if (appointmentId) {
         try {
@@ -127,6 +150,37 @@ const processWebHookStripe = async (event: any) => {
         } catch (error: any) {
           logger.error(
             `Failed to update appointment payment: ${error.message}`
+          );
+        }
+      } else if (appointmentToken) {
+        try {
+          // Find appointment by token
+          const appointment = await prisma.appointment.findFirst({
+            where: { appointmentToken },
+          });
+
+          if (appointment) {
+            await paymentStateApply(appointment.id, "scheduled");
+            logger.info(`Appointment ${appointment.id} marked as paid via token`);
+          } else {
+            logger.error(`Appointment not found for token: ${appointmentToken}`);
+          }
+        } catch (error: any) {
+          logger.error(
+            `Failed to update appointment payment: ${error.message}`
+          );
+        }
+      }
+
+      // Handle invoice payments
+      const invoiceId = paymentIntent.metadata?.invoiceId;
+      if (invoiceId && paymentIntent.metadata?.type === "invoice_payment") {
+        try {
+          await invoiceService.processInvoicePayment(invoiceId, paymentIntent.id);
+          logger.info(`Invoice ${invoiceId} marked as paid via payment intent`);
+        } catch (error: any) {
+          logger.error(
+            `Failed to update invoice payment: ${error.message}`
           );
         }
       }
@@ -149,8 +203,9 @@ const processWebHookStripe = async (event: any) => {
     case "checkout.session.async_payment_failed":
     case "payment_intent.payment_failed": {
       const payment = event.data.object;
-      const appointmentId = payment.metadata?.appointmentId;
 
+      // Handle appointment payment failures
+      const appointmentId = payment.metadata?.appointmentId;
       if (appointmentId) {
         try {
           await paymentStateApply(appointmentId, "failed");
@@ -161,9 +216,37 @@ const processWebHookStripe = async (event: any) => {
           );
         }
       }
+
+      // Handle invoice payment failures
+      const invoiceId = payment.metadata?.invoiceId;
+      if (invoiceId && payment.metadata?.type === "invoice_payment") {
+        try {
+          // Create failed transaction record
+          await transactionService.createTransaction({
+            clinicId: payment.metadata.clinicId,
+            clientId: payment.metadata.clientId,
+            transactionId: payment.id,
+            amount: payment.amount ? payment.amount / 100 : 0,
+            type: "invoice_payment",
+            method: "stripe",
+            status: "failed",
+            description: `Failed invoice payment`,
+            meta: {
+              invoiceId,
+              paymentIntentId: payment.id,
+              error: payment.last_payment_error?.message || "Payment failed",
+            },
+          });
+          logger.info(`Invoice ${invoiceId} payment failed`);
+        } catch (error: any) {
+          logger.error(
+            `Failed to record invoice payment failure: ${error.message}`
+          );
+        }
+      }
       break;
     }
-    
+
     // New subscription webhooks
     case "customer.subscription.created": {
       const subscription = event.data.object;
@@ -208,7 +291,7 @@ const paymentStateApply = async (appointmentId: string, state: string) => {
 const handleSubscriptionCreated = async (subscription: any) => {
   try {
     const clinicId = subscription.metadata?.clinicId;
-    
+
     if (!clinicId) {
       logger.error('No clinicId in subscription metadata');
       return;
@@ -242,7 +325,7 @@ const handleSubscriptionUpdated = async (subscription: any) => {
 const handleSubscriptionDeleted = async (subscription: any) => {
   try {
     const clinicId = subscription.metadata?.clinicId;
-    
+
     if (!clinicId) {
       logger.error('No clinicId in subscription metadata');
       return;
@@ -265,12 +348,12 @@ const handleInvoicePaymentSucceeded = async (invoice: any) => {
     if (invoice.subscription && typeof invoice.subscription === 'string') {
       const subscription = await getSubscription(invoice.subscription);
       await syncSubscriptionFromStripe(subscription.id);
-      
+
       // Create transaction record for subscription renewal
       const clinicId = subscription.metadata?.clinicId;
       if (clinicId) {
         const localSubscription = await subscriptionService.getSubscriptionByClinicId(clinicId);
-        
+
         await transactionService.createTransaction({
           clinicId,
           userId: subscription.metadata?.userId,
@@ -290,7 +373,7 @@ const handleInvoicePaymentSucceeded = async (invoice: any) => {
           },
         });
       }
-      
+
       logger.info(`✅ Payment succeeded for subscription ${subscription.id}`);
     }
   } catch (error: any) {
@@ -303,11 +386,11 @@ const handleInvoicePaymentFailed = async (invoice: any) => {
     if (invoice.subscription && typeof invoice.subscription === 'string') {
       const subscription = await getSubscription(invoice.subscription);
       const clinicId = subscription.metadata?.clinicId;
-      
+
       if (clinicId) {
         // Create failed transaction record
         const localSubscription = await subscriptionService.getSubscriptionByClinicId(clinicId);
-        
+
         await transactionService.createTransaction({
           clinicId,
           userId: subscription.metadata?.userId,
@@ -325,12 +408,12 @@ const handleInvoicePaymentFailed = async (invoice: any) => {
             failureMessage: invoice.last_payment_error?.message,
           },
         });
-        
+
         // Update subscription status to past_due
         await subscriptionService.updateSubscriptionByClinicId(clinicId, {
           status: SubscriptionStatus.past_due,
         });
-        
+
         logger.info(`⚠️ Payment failed for subscription ${subscription.id}, marked as past_due`);
       }
     }
@@ -407,7 +490,7 @@ const getSubscription = async (subscriptionId: string) => {
 const syncSubscriptionFromStripe = async (stripeSubscriptionId: string) => {
   try {
     const stripeSubscription: any = await getSubscription(stripeSubscriptionId);
-    
+
     // Find local subscription
     const localSubscription = await subscriptionService.getSubscriptionByClinicId(
       stripeSubscription.metadata?.clinicId

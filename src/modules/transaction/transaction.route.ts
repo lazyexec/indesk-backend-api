@@ -3,15 +3,21 @@ import auth from "../../middlewares/auth";
 import validate from "../../middlewares/validate";
 import transactionValidation from "./transaction.validation";
 import transactionController from "./transaction.controller";
-import stripeController from "../stripe/stripe.controller";
 
 const router = express.Router();
 
 router.get(
   "/all",
-  auth("admin"),
+  auth("provider"),
   validate(transactionValidation.getAllTransactions),
   transactionController.getAllTransactions
+);
+
+router.get(
+  "/clinic",
+  auth("commonAdmin", "clinician_transactions"),
+  validate(transactionValidation.getClinicTransactions),
+  transactionController.getClinicTransactions
 );
 
 router.delete(

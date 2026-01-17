@@ -7,6 +7,7 @@ import {
   retryWithBackoff,
 } from "../integration.helper";
 import { IntegrationType } from "../../../../generated/prisma/client";
+import env from "../../../configs/env";
 
 const INTEGRATION_TYPE = IntegrationType.zoom;
 
@@ -42,7 +43,7 @@ const refreshAccessToken = async (clinicId: string): Promise<void> => {
       {
         headers: {
           Authorization: `Basic ${Buffer.from(
-            `${process.env.ZOOM_CLIENT_ID}:${process.env.ZOOM_CLIENT_SECRET}`
+            `${env.zoom.clientId}:${env.zoom.clientSecret}`
           ).toString("base64")}`,
         },
       }

@@ -57,10 +57,22 @@ const updateMemberRole = {
   }),
 };
 
+const getClinicianByToken = {
+  params: Joi.object().keys({
+    token: Joi.string().required()
+  }),
+  query: Joi.object().keys({
+    limit: Joi.number().optional(),
+    page: Joi.number().optional(),
+    sort: Joi.string().optional(),
+  }),
+};
+
 export default {
   addMember,
   getMembers,
   removeMember,
   updateMember,
   updateMemberRole,
+  getClinicianByToken
 };

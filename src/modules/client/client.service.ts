@@ -30,31 +30,19 @@ const createClient = async (
   // Check client limit before creating
   await limitService.enforceClientLimit(clinicId);
 
+  // Check if email already exists in this clinic
   const clientExists = await prisma.client.findFirst({
-    where: { email },
+    where: {
+      email,
+      clinicId,
+    },
   });
 
   if (clientExists) {
-    throw new ApiError(httpStatus.CONFLICT, "Email already Occupied!");
+    throw new ApiError(httpStatus.CONFLICT, "Email already exists in this clinic!");
   }
 
-  const clinicMember = await prisma.clinicMember.findUnique({
-    where: { id: assignedClinicianId },
-    select: { clinicId: true },
-  });
-
-  if (!clinicMember) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Assigned clinician not found");
-  }
-
-  if (clinicMember.clinicId !== clinicId) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Assigned clinician does not belong to this clinic"
-    );
-  }
-
-  // Verify clinic exists and user has access
+  // Verify clinic exists and get the user's clinic member ID
   const clinicAccess = await prisma.clinicMember.findFirst({
     where: {
       clinicId,
@@ -63,7 +51,34 @@ const createClient = async (
   });
 
   if (!clinicAccess) {
-    throw new ApiError(403, "You don't have access to this clinic");
+    throw new ApiError(httpStatus.FORBIDDEN, "You don't have access to this clinic");
+  }
+
+  // Validate assigned clinician if provided
+  if (assignedClinicianId) {
+    const clinicMember = await prisma.clinicMember.findUnique({
+      where: { id: assignedClinicianId },
+      select: { clinicId: true, role: true },
+    });
+
+    if (!clinicMember) {
+      throw new ApiError(httpStatus.NOT_FOUND, "Assigned clinician not found");
+    }
+
+    if (clinicMember.clinicId !== clinicId) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Assigned clinician does not belong to this clinic"
+      );
+    }
+
+    // Optionally verify the assigned member is a clinician
+    if (clinicMember.role !== "clinician") {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Assigned member must have clinician role"
+      );
+    }
   }
 
   const client = await prisma.client.create({
@@ -82,8 +97,8 @@ const createClient = async (
       note,
       status,
       clinicId,
-      assignedClinicianId,
-      addedBy: userId,
+      assignedClinicianId: assignedClinicianId || undefined,
+      addedBy: clinicAccess.id, // Use clinic member ID, not user ID
     },
     include: {
       assignedClinician: {

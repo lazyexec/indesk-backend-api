@@ -5,6 +5,7 @@ import integrationService from "./integration.service";
 import clinicService from "../clinic/clinic.service";
 import response from "../../utils/response";
 import ApiError from "../../utils/ApiError";
+import env from "../../configs/env";
 
 const getIntegrations = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user!.id as string;
@@ -47,7 +48,7 @@ const handleOAuthCallback = catchAsync(async (req: Request, res: Response) => {
   const { type } = req.params;
   const { code, state, error } = req.query;
 
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  const frontendUrl = env.FRONTEND_URL;
 
   // Handle OAuth errors from provider
   if (error) {
@@ -95,7 +96,7 @@ const updateIntegrationConfig = catchAsync(async (req: Request, res: Response) =
   }
 
   const { type } = req.params;
-  const  config  = req.body;
+  const config = req.body;
 
   const integration = await integrationService.updateIntegrationConfig(
     clinicId,

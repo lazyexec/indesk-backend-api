@@ -7,6 +7,7 @@ import fs from "../../utils/fs";
 import env from "../../configs/env";
 import { Prisma } from "../../../generated/prisma/client";
 import subscriptionService from "../subscription/subscription.service";
+import crypto from "crypto";
 
 const createClinic = async (
   data: Partial<IClinic> & { ownerEmail?: string }
@@ -24,6 +25,10 @@ const createClinic = async (
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, "User not found");
   }
+
+  // Generate public token
+  const publicToken = crypto.randomBytes(32).toString("hex");
+
   let clinic;
   try {
     clinic = await prisma.clinic.create({
@@ -33,6 +38,7 @@ const createClinic = async (
         email,
         phoneNumber,
         address,
+        publicToken,
         members: {
           create: {
             userId: user.id,

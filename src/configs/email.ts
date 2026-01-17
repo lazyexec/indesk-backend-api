@@ -3,6 +3,7 @@ import logger from "../utils/logger";
 import nodemailer from "nodemailer";
 import ApiError from "../utils/ApiError";
 import httpStatus from "http-status";
+import emailTemplates from "./emailTemplates";
 
 // Create a test account or replace with real credentials.
 const transporter = nodemailer.createTransport(env.email.provider);
@@ -31,49 +32,56 @@ const sendMail = async (options: nodemailer.SendMailOptions) => {
 
 const sendRegistrationEmail = async (to: string, token: string) => {
   logger.info(`Sending registration email to ${to} with token ${token}`);
+  const template = emailTemplates.registration(token);
   await sendMail({
     to,
-    subject: "Registration Confirmation",
-    text: `Please confirm your registration using this token: ${token}`,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
-  // Implementation for sending registration email
 };
 
 const sendResetPasswordEmail = async (to: string, token: string) => {
+  const template = emailTemplates.resetPassword(token);
   await sendMail({
     to,
-    subject: "Reset Password",
-    text: `Please Recover your account using this code: ${token}`,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
-  // Implementation for sending reset password email
   logger.info(`Sending reset password email to ${to} with token ${token}`);
 };
 
 const sendRestrictionEmail = async (to: string, reason: string) => {
+  const template = emailTemplates.restriction(reason);
   await sendMail({
     to,
-    subject: "Account Restriction",
-    text: `Your account has been restricted. Reason: ${reason}. Consider to contact support for assistance.`,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
   logger.info(`Sending restriction email to ${to}`);
 };
 
 const sendUnrestrictedEmail = async (to: string) => {
+  const template = emailTemplates.unrestricted();
   await sendMail({
     to,
-    subject: "Account Unrestricted",
-    text: `Your account has been unrestricted. Enjoy your stay!`,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
   logger.info(`Sending unrestricted email to ${to}`);
 };
 
 const sendWelcomeEmail = async (to: string, token: string) => {
+  const template = emailTemplates.welcome(token);
   await sendMail({
     to,
-    subject: "Welcome to InDesk",
-    text: `Please confirm your registration using this token: ${token}`,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
-  // Implementation for sending registration email
   logger.info(`Sending welcome email to ${to} with token ${token}`);
 };
 
@@ -83,21 +91,12 @@ const sendAssessmentEmail = async (
   shareUrl: string,
   customMessage?: string
 ) => {
-  const emailText = `
-Hello,
-
-${customMessage || `You have been assigned an assessment: "${assessmentTitle}"`}
-
-Please complete the assessment by clicking the link below:
-${shareUrl}
-
-${customMessage ? "" : "Thank you!"}
-  `;
-
+  const template = emailTemplates.assessment(assessmentTitle, shareUrl, customMessage);
   await sendMail({
     to,
-    subject: `Assessment: ${assessmentTitle}`,
-    text: emailText,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
   logger.info(
     `Sending assessment email to ${to} for assessment: ${assessmentTitle}`
@@ -109,27 +108,12 @@ const sendPaymentLinkEmail = async (
   paymentLink: string,
   appointmentDetails: any
 ) => {
-  const emailText = `
-Hello ${appointmentDetails.clientName},
-
-Your appointment for "${appointmentDetails.sessionName}" has been scheduled.
-
-Date: ${appointmentDetails.date}
-Time: ${appointmentDetails.time}
-Clinician: ${appointmentDetails.clinicianName || "your clinician"}
-
-Price: $${appointmentDetails.price}
-
-Please complete the payment to confirm your appointment by clicking the link below:
-${paymentLink}
-
-Thank you!
-  `;
-
+  const template = emailTemplates.paymentLink(paymentLink, appointmentDetails);
   await sendMail({
     to,
-    subject: `Payment Required: ${appointmentDetails.sessionName}`,
-    text: emailText,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
   });
   logger.info(`Sending payment link email to ${to}`);
 };

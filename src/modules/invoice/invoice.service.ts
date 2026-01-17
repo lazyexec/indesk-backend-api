@@ -3,6 +3,8 @@ import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 import { InvoiceStatus, Prisma } from "../../../generated/prisma/client";
 import logger from "../../utils/logger";
+import crypto from "crypto";
+import env from "../../configs/env";
 
 /**
  * Create invoice
@@ -64,6 +66,9 @@ const createInvoice = async (clinicId: string, invoiceBody: any) => {
     );
   }
 
+  // Generate public token
+  const publicToken = crypto.randomBytes(32).toString("hex");
+
   // Create invoice
   const invoice = await prisma.invoice.create({
     data: {
@@ -73,6 +78,7 @@ const createInvoice = async (clinicId: string, invoiceBody: any) => {
       dueDate: new Date(dueDate),
       totalAmount: calculatedAmount,
       status: status || InvoiceStatus.pending,
+      publicToken,
       appointments: {
         connect: appointmentIds.map((id: string) => ({ id })),
       },
@@ -188,6 +194,16 @@ const getInvoiceById = async (clinicId: string, invoiceId: string) => {
     where: { id: invoiceId, clinicId },
     include: {
       client: true,
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+          address: true,
+          logo: true,
+        },
+      },
       appointments: {
         include: {
           session: true,
@@ -243,8 +259,8 @@ const updateInvoice = async (
       // If appointmentIds is passed, we might need to set them.
       appointments: updateBody.appointmentIds
         ? {
-            set: updateBody.appointmentIds.map((id: string) => ({ id })),
-          }
+          set: updateBody.appointmentIds.map((id: string) => ({ id })),
+        }
         : undefined,
     },
     include: {
@@ -352,6 +368,7 @@ const createSuccessInvoice = async (appointmentId: string) => {
     if (!appointment) {
       throw new Error("Appointment not found");
     }
+    const publicToken = crypto.randomBytes(32).toString("hex");
     const invoice = await prisma.invoice.create({
       data: {
         clientId: appointment.clientId,
@@ -363,6 +380,7 @@ const createSuccessInvoice = async (appointmentId: string) => {
         dueDate: new Date(),
         totalAmount: appointment.transaction?.amount || 0,
         status: InvoiceStatus.paid,
+        publicToken,
       },
     });
     logger.info(`Invoice created for appointment ${appointmentId}`);
@@ -373,6 +391,300 @@ const createSuccessInvoice = async (appointmentId: string) => {
   }
 };
 
+/**
+ * Get invoice by public token (no auth required)
+ * @param {string} publicToken
+ * @returns {Promise<Invoice>}
+ */
+const getInvoiceByPublicToken = async (publicToken: string) => {
+  const invoice = await prisma.invoice.findUnique({
+    where: { publicToken },
+    include: {
+      client: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      clinic: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+          address: true,
+          logo: true,
+        },
+      },
+      appointments: {
+        include: {
+          session: {
+            select: {
+              name: true,
+              price: true,
+              duration: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Invoice not found");
+  }
+
+  return invoice;
+};
+
+/**
+ * Send invoice email to client
+ * @param {string} clinicId
+ * @param {string} invoiceId
+ * @param {string} customMessage
+ * @returns {Promise<void>}
+ */
+const sendInvoiceEmail = async (
+  clinicId: string,
+  invoiceId: string,
+  customMessage?: string
+) => {
+  const invoice = await getInvoiceById(clinicId, invoiceId);
+
+  if (!invoice.publicToken) {
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      "Invoice public token not found"
+    );
+  }
+
+  // Generate public link
+  const baseUrl = env.FRONTEND_URL;
+  const publicLink = `${baseUrl}/invoice/public/${invoice.publicToken}`;
+
+  // Prepare invoice details
+  const clientName = `${invoice.client.firstName} ${invoice.client.lastName}`;
+  const invoiceNumber = invoice.id.slice(0, 8).toUpperCase();
+  const issueDate = new Date(invoice.issueDate).toLocaleDateString();
+  const dueDate = new Date(invoice.dueDate).toLocaleDateString();
+  const totalAmount = invoice.totalAmount.toFixed(2);
+
+  try {
+    // Use clinic's Mailchimp integration
+    const mailchimpService = (await import("../integration/services/mailchimp.integration")).default;
+    const isConnected = await mailchimpService.isMailchimpConnected(clinicId);
+
+    if (!isConnected) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Mailchimp is not configured for this clinic. Please connect Mailchimp to send invoices."
+      );
+    }
+
+    // Get email template
+    const emailTemplates = (await import("../../configs/emailTemplates")).default;
+    const template = emailTemplates.invoice(
+      publicLink,
+      clientName,
+      invoice.clinic.name,
+      invoiceNumber,
+      issueDate,
+      dueDate,
+      totalAmount,
+      customMessage
+    );
+
+    await mailchimpService.sendTransactionalEmail(clinicId, {
+      to: invoice.client.email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+      fromName: invoice.clinic.name,
+      fromEmail: invoice.clinic.email || undefined,
+    });
+
+    logger.info(`Invoice email sent via Mailchimp to ${invoice.client.email} for invoice ${invoiceId}`);
+  } catch (error: any) {
+    logger.error(`Failed to send invoice email: ${error.message}`);
+    throw new ApiError(
+      httpStatus.INTERNAL_SERVER_ERROR,
+      `Failed to send invoice email: ${error.message}`
+    );
+  }
+};
+
+/**
+ * Create payment intent for public invoice
+ * @param {string} publicToken
+ * @returns {Promise<Object>}
+ */
+const createInvoicePaymentIntent = async (publicToken: string) => {
+  const invoice = await getInvoiceByPublicToken(publicToken);
+
+  if (invoice.status === InvoiceStatus.paid) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Invoice is already paid");
+  }
+
+  // Import stripe service
+  const stripeService = (await import("../stripe/stripe.service")).default;
+
+  // Create payment intent with invoice metadata
+  const paymentIntent = await stripeService.createPaymentIntent({
+    amount: invoice.totalAmount,
+    currency: "usd",
+    metadata: {
+      invoiceId: invoice.id,
+      clinicId: invoice.clinicId,
+      clientId: invoice.clientId,
+      type: "invoice_payment",
+    },
+  });
+
+  logger.info(`Payment intent created for invoice ${invoice.id}: ${paymentIntent.id}`);
+
+  return {
+    clientSecret: paymentIntent.client_secret,
+    paymentIntentId: paymentIntent.id,
+    amount: invoice.totalAmount,
+    invoice: {
+      id: invoice.id,
+      totalAmount: invoice.totalAmount,
+      issueDate: invoice.issueDate,
+      dueDate: invoice.dueDate,
+      clinic: invoice.clinic,
+    },
+  };
+};
+
+/**
+ * Confirm payment intent for public invoice (client-side confirmation)
+ * @param {string} publicToken
+ * @param {Object} paymentData
+ * @returns {Promise<Object>}
+ */
+const confirmInvoicePayment = async (publicToken: string, paymentData: any) => {
+  const invoice = await getInvoiceByPublicToken(publicToken);
+
+  if (invoice.status === InvoiceStatus.paid) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Invoice is already paid");
+  }
+
+  const { paymentIntentId } = paymentData;
+
+  if (!paymentIntentId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Payment intent ID is required");
+  }
+
+  // Verify payment intent with Stripe
+  const stripeService = (await import("../stripe/stripe.service")).default;
+  const paymentIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
+
+  if (paymentIntent.status !== "succeeded") {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Payment has not been completed. Please wait for payment confirmation."
+    );
+  }
+
+  // Verify payment intent matches invoice
+  if (paymentIntent.metadata?.invoiceId !== invoice.id) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Payment intent does not match this invoice"
+    );
+  }
+
+  // Return confirmation - actual update will happen via webhook
+  logger.info(`Payment confirmed for invoice ${invoice.id}, waiting for webhook`);
+
+  return {
+    message: "Payment confirmed successfully. Invoice will be updated shortly.",
+    paymentIntentId: paymentIntent.id,
+    status: paymentIntent.status,
+  };
+};
+
+/**
+ * Process invoice payment (called by webhook only)
+ * @param {string} invoiceId
+ * @returns {Promise<Invoice>}
+ */
+const processInvoicePayment = async (invoiceId: string, paymentIntentId: string) => {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: {
+      client: true,
+      clinic: true,
+      appointments: {
+        include: {
+          session: true,
+        },
+      },
+    },
+  });
+
+  if (!invoice) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Invoice not found");
+  }
+
+  if (invoice.status === InvoiceStatus.paid) {
+    logger.info(`Invoice ${invoiceId} is already paid, skipping update`);
+    return invoice;
+  }
+
+  // Create transaction record
+  const transactionService = (await import("../transaction/transaction.service")).default;
+  await transactionService.createTransaction({
+    clinicId: invoice.clinicId,
+    clientId: invoice.clientId,
+    transactionId: paymentIntentId,
+    amount: invoice.totalAmount,
+    type: "invoice_payment",
+    method: "stripe",
+    status: "completed",
+    description: `Invoice payment for ${invoice.clinic.name}`,
+    meta: {
+      invoiceId: invoice.id,
+      paymentIntentId,
+    },
+  });
+
+  // Update invoice status
+  const updatedInvoice = await prisma.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      status: InvoiceStatus.paid,
+    },
+    include: {
+      client: true,
+      clinic: true,
+      appointments: {
+        include: {
+          session: true,
+        },
+      },
+    },
+  });
+
+  // Update associated appointments to completed
+  if (invoice.appointments && invoice.appointments.length > 0) {
+    await prisma.appointment.updateMany({
+      where: {
+        id: { in: invoice.appointments.map((appt) => appt.id) },
+      },
+      data: {
+        status: "completed",
+      },
+    });
+  }
+
+  logger.info(`Invoice ${invoice.id} paid successfully via webhook with payment intent ${paymentIntentId}`);
+
+  return updatedInvoice;
+};
+
 export default {
   createInvoice,
   getInvoices,
@@ -381,4 +693,9 @@ export default {
   deleteInvoice,
   getInvoiceStats,
   createSuccessInvoice,
+  getInvoiceByPublicToken,
+  sendInvoiceEmail,
+  createInvoicePaymentIntent,
+  confirmInvoicePayment,
+  processInvoicePayment,
 };

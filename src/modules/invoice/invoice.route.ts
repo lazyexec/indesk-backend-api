@@ -6,6 +6,26 @@ import invoiceValidation from "./invoice.validation";
 
 const router = express.Router();
 
+// Public routes (no authentication required)
+router.get(
+  "/public/:publicToken",
+  validate(invoiceValidation.getPublicInvoice),
+  invoiceController.getPublicInvoice
+);
+
+router.post(
+  "/public/:publicToken/create-payment-intent",
+  validate(invoiceValidation.getPublicInvoice),
+  invoiceController.createInvoicePaymentIntent
+);
+
+router.post(
+  "/public/:publicToken/confirm-payment",
+  validate(invoiceValidation.confirmInvoicePayment),
+  invoiceController.confirmInvoicePayment
+);
+
+// Protected routes (authentication required)
 router
   .route("/")
   .post(
@@ -25,8 +45,6 @@ router.get(
   invoiceController.getInvoiceStats
 );
 
-
-
 router
   .route("/:invoiceId")
   .get(
@@ -45,6 +63,11 @@ router
     invoiceController.deleteInvoice
   );
 
-// TODO: Routes for Client to Pay or Check Invoice
+router.post(
+  "/:invoiceId/send-email",
+  auth("commonAdmin", "clinician_invoices"),
+  validate(invoiceValidation.sendInvoiceEmail),
+  invoiceController.sendInvoiceEmail
+);
 
 export default router;

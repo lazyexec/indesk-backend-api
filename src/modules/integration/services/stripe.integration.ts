@@ -1,35 +1,39 @@
 import Stripe from "stripe";
 import {
-  getIntegrationConfig,
   handleApiError,
   retryWithBackoff,
 } from "../integration.helper";
 import { IntegrationType } from "../../../../generated/prisma/client";
 import ApiError from "../../../utils/ApiError";
 import httpStatus from "http-status";
+import env from "../../../configs/env";
+import prisma from "../../../configs/prisma";
+import stripe from "../../../configs/stripe";
+import logger from "../../../utils/logger";
 
 const INTEGRATION_TYPE = IntegrationType.stripe;
 
 /**
- * Get Stripe client for a clinic
+ * Get connected account ID for a clinic
  */
-const getStripeClient = async (clinicId: string): Promise<Stripe> => {
-  const config = await getIntegrationConfig(clinicId, INTEGRATION_TYPE);
-
-  if (!config.secretKey) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Stripe secret key not configured"
-    );
-  }
-
-  return new Stripe(config.secretKey, {
-    apiVersion: "2025-12-15.clover",
+const getConnectedAccountId = async (clinicId: string): Promise<string | null> => {
+  const integration = await prisma.integration.findFirst({
+    where: {
+      clinicId,
+      type: INTEGRATION_TYPE,
+      status: "connected",
+    },
   });
+
+  logger.info("Integration >>> ",integration)
+
+  // accountId is stored in the config JSON field
+  const config = integration?.config as any;
+  return config?.stripeUserId || null;
 };
 
 /**
- * Create payment link for appointment
+ * Create payment link for appointment using Stripe Connect
  */
 const createPaymentLink = async (
   clinicId: string,
@@ -41,30 +45,42 @@ const createPaymentLink = async (
   }
 ): Promise<{ url: string; id: string }> => {
   try {
-    const stripe = await getStripeClient(clinicId);
+    // Get the clinic's connected Stripe account
+    const accountId = await getConnectedAccountId(clinicId);
 
+    if (!accountId) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Clinic has not connected Stripe account"
+      );
+    }
     const paymentLink = await retryWithBackoff(() =>
-      stripe.paymentLinks.create({
-        line_items: [
-          {
-            price_data: {
-              currency: data.currency || "usd",
-              product_data: {
-                name: data.description,
+      stripe.stripe.paymentLinks.create(
+        {
+          line_items: [
+            {
+              price_data: {
+                currency: data.currency || "usd",
+                product_data: {
+                  name: data.description,
+                },
+                unit_amount: Math.round(data.amount * 100), // Convert to cents
               },
-              unit_amount: Math.round(data.amount * 100), // Convert to cents
+              quantity: 1,
             },
-            quantity: 1,
-          },
-        ],
-        metadata: data.metadata,
-        after_completion: {
-          type: "redirect",
-          redirect: {
-            url: `${process.env.FRONTEND_URL}/appointments/payment-success`,
+          ],
+          metadata: data.metadata,
+          after_completion: {
+            type: "redirect",
+            redirect: {
+              url: `${env.FRONTEND_URL}/appointments/payment-success`,
+            },
           },
         },
-      })
+        {
+          stripeAccount: accountId, // Use connected account
+        }
+      )
     );
 
     return {
@@ -81,7 +97,7 @@ const createPaymentLink = async (
 };
 
 /**
- * Create checkout session
+ * Create checkout session using Stripe Connect
  */
 const createCheckoutSession = async (
   clinicId: string,
@@ -96,33 +112,47 @@ const createCheckoutSession = async (
   }
 ): Promise<{ sessionId: string; url: string }> => {
   try {
-    const stripe = await getStripeClient(clinicId);
+    // Get the clinic's connected Stripe account
+    const accountId = await getConnectedAccountId(clinicId);
+
+    console.log("clinic account id" , accountId)
+    if (!accountId) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Clinic has not connected Stripe account"
+      );
+    }
 
     const session = await retryWithBackoff(() =>
-      stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: data.currency || "usd",
-              product_data: {
-                name: data.description,
+      stripe.stripe.checkout.sessions.create(
+        {
+          payment_method_types: ["card"],
+          line_items: [
+            {
+              price_data: {
+                currency: data.currency || "usd",
+                product_data: {
+                  name: data.description,
+                },
+                unit_amount: Math.round(data.amount * 100),
               },
-              unit_amount: Math.round(data.amount * 100),
+              quantity: 1,
             },
-            quantity: 1,
-          },
-        ],
-        mode: "payment",
-        customer_email: data.customerEmail,
-        metadata: data.metadata,
-        success_url:
-          data.successUrl ||
-          `${process.env.FRONTEND_URL}/appointments/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url:
-          data.cancelUrl ||
-          `${process.env.FRONTEND_URL}/appointments/payment-cancelled`,
-      })
+          ],
+          mode: "payment",
+          customer_email: data.customerEmail,
+          metadata: data.metadata,
+          success_url:
+            data.successUrl ||
+            `${env.FRONTEND_URL}/appointments/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url:
+            data.cancelUrl ||
+            `${env.FRONTEND_URL}/appointments/payment-cancelled`,
+        },
+        {
+          stripeAccount: accountId, // Use connected account
+        }
+      )
     );
 
     return {
@@ -151,10 +181,14 @@ const getPaymentStatus = async (
   metadata: Record<string, string>;
 }> => {
   try {
-    const stripe = await getStripeClient(clinicId);
+    const accountId = await getConnectedAccountId(clinicId);
 
     const paymentIntent = await retryWithBackoff(() =>
-      stripe.paymentIntents.retrieve(paymentIntentId)
+      accountId
+        ? stripe.stripe.paymentIntents.retrieve(paymentIntentId, {
+          stripeAccount: accountId,
+        })
+        : stripe.stripe.paymentIntents.retrieve(paymentIntentId)
     );
 
     return {
@@ -182,10 +216,13 @@ const getCheckoutSession = async (
   sessionId: string
 ): Promise<any> => {
   try {
-    const stripe = await getStripeClient(clinicId);
-
+    const accountId = await getConnectedAccountId(clinicId);
     const session = await retryWithBackoff(() =>
-      stripe.checkout.sessions.retrieve(sessionId)
+      accountId
+        ? stripe.stripe.checkout.sessions.retrieve(sessionId, {
+          stripeAccount: accountId,
+        })
+        : stripe.stripe.checkout.sessions.retrieve(sessionId)
     );
 
     return {
@@ -220,13 +257,22 @@ const processRefund = async (
   amount?: number
 ): Promise<{ refundId: string; status: string }> => {
   try {
-    const stripe = await getStripeClient(clinicId);
-
+    const accountId = await getConnectedAccountId(clinicId);
     const refund = await retryWithBackoff(() =>
-      stripe.refunds.create({
-        payment_intent: paymentIntentId,
-        amount: amount ? Math.round(amount * 100) : undefined,
-      })
+      accountId
+        ? stripe.stripe.refunds.create(
+          {
+            payment_intent: paymentIntentId,
+            amount: amount ? Math.round(amount * 100) : undefined,
+          },
+          {
+            stripeAccount: accountId,
+          }
+        )
+        : stripe.stripe.refunds.create({
+          payment_intent: paymentIntentId,
+          amount: amount ? Math.round(amount * 100) : undefined,
+        })
     );
 
     return {
@@ -255,15 +301,26 @@ const createCustomer = async (
   }
 ): Promise<{ customerId: string }> => {
   try {
-    const stripe = await getStripeClient(clinicId);
-
+    const accountId = await getConnectedAccountId(clinicId);
     const customer = await retryWithBackoff(() =>
-      stripe.customers.create({
-        email: data.email,
-        name: data.name,
-        phone: data.phone,
-        metadata: data.metadata,
-      })
+      accountId
+        ? stripe.stripe.customers.create(
+          {
+            email: data.email,
+            name: data.name,
+            phone: data.phone,
+            metadata: data.metadata,
+          },
+          {
+            stripeAccount: accountId,
+          }
+        )
+        : stripe.stripe.customers.create({
+          email: data.email,
+          name: data.name,
+          phone: data.phone,
+          metadata: data.metadata,
+        })
     );
 
     return {
@@ -277,23 +334,6 @@ const createCustomer = async (
   }
 };
 
-/**
- * Verify webhook signature
- */
-const verifyWebhookSignature = (
-  payload: string | Buffer,
-  signature: string,
-  webhookSecret: string
-): Stripe.Event => {
-  try {
-    return Stripe.webhooks.constructEvent(payload, signature, webhookSecret);
-  } catch (error: any) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      `Webhook signature verification failed: ${error.message}`
-    );
-  }
-};
 
 export default {
   createPaymentLink,
@@ -302,5 +342,4 @@ export default {
   getCheckoutSession,
   processRefund,
   createCustomer,
-  verifyWebhookSignature,
 };

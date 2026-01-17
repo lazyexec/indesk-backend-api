@@ -7,6 +7,7 @@ import {
   retryWithBackoff,
 } from "../integration.helper";
 import { IntegrationType } from "../../../../generated/prisma/client";
+import env from "../../../configs/env";
 
 const INTEGRATION_TYPE = IntegrationType.xero;
 
@@ -42,7 +43,7 @@ const refreshAccessToken = async (clinicId: string): Promise<void> => {
       {
         headers: {
           Authorization: `Basic ${Buffer.from(
-            `${process.env.XERO_CLIENT_ID}:${process.env.XERO_CLIENT_SECRET}`
+            `${env.xero.clientId}:${env.xero.clientSecret}`
           ).toString("base64")}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -184,11 +185,11 @@ const createContact = async (
       EmailAddress: data.email,
       Phones: data.phone
         ? [
-            {
-              PhoneType: "MOBILE",
-              PhoneNumber: data.phone,
-            },
-          ]
+          {
+            PhoneType: "MOBILE",
+            PhoneNumber: data.phone,
+          },
+        ]
         : [],
     };
 

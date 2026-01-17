@@ -5,10 +5,10 @@ const createAppointment = {
     sessionId: Joi.string().uuid().required(),
     clientId: Joi.string().uuid().required(),
     clinicianId: Joi.string().uuid().required(),
-    date: Joi.date().iso().required().min("now").messages({
-      "date.min": "Appointment date cannot be in the past",
+    date: Joi.date().iso().optional(), // Made optional
+    time: Joi.date().iso().required().min("now").messages({
+      "date.min": "Appointment time cannot be in the past",
     }),
-    time: Joi.date().iso().required(),
     note: Joi.string().optional().allow(null, "").max(500),
     meetingType: Joi.string()
       .valid("in_person", "zoom")
@@ -33,17 +33,33 @@ const applyAppointmentWithToken = {
     clientEmail: Joi.string().required().email().trim().lowercase().messages({
       "string.email": "Please provide a valid email address",
     }),
-    clientPhone: Joi.number().optional(),
-    clientCountryCode: Joi.string().when("clientPhone", {
-      is: Joi.number(),
-      then: Joi.string().required(),
-      otherwise: Joi.string().optional(),
-    }),
+    clientPhone: Joi.string()
+      .trim()
+      .pattern(/^[0-9+\-\s()]+$/)
+      .min(7)
+      .max(20)
+      .optional()
+      .messages({
+        "string.pattern.base": "Phone number must contain only numbers and valid characters (+, -, space, parentheses)",
+        "string.min": "Phone number must be at least 7 characters",
+        "string.max": "Phone number cannot exceed 20 characters",
+      }),
+    clientCountryCode: Joi.string()
+      .trim()
+      .pattern(/^\+?[0-9]{1,4}$/)
+      .when("clientPhone", {
+        is: Joi.exist(),
+        then: Joi.required(),
+        otherwise: Joi.optional(),
+      })
+      .messages({
+        "string.pattern.base": "Country code must be a valid format (e.g., +1, +44)",
+        "any.required": "Country code is required when phone number is provided",
+      }),
     sessionId: Joi.string().uuid().required(),
-    date: Joi.date().iso().required().min("now").messages({
+    time: Joi.date().iso().required().min("now").messages({
       "date.min": "Appointment date cannot be in the past",
     }),
-    time: Joi.date().iso().required(),
     note: Joi.string().optional().allow(null, "").max(500),
     meetingType: Joi.string()
       .valid("in_person", "zoom")

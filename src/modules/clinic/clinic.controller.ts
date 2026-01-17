@@ -42,7 +42,7 @@ const getClinicByIdForProvider = catchAsync(async (req: Request, res: Response) 
 // Clinic member routes (uses authenticated user's clinic)
 const getOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
   const clinicId = req.user?.clinicId;
-  
+
   if (!clinicId) {
     throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
   }
@@ -60,7 +60,7 @@ const getOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response)
 
 const updateOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
   const clinicId = req.user?.clinicId;
-  
+
   if (!clinicId) {
     throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
   }
@@ -90,7 +90,7 @@ const updateOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Respon
 
 const updateOwnClinicPermissions = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
   const clinicId = req.user?.clinicId;
-  
+
   if (!clinicId) {
     throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
   }
@@ -114,7 +114,7 @@ const updateOwnClinicPermissions = catchAsync(async (req: AuthenticatedRequest, 
 
 const deleteOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
   const clinicId = req.user?.clinicId;
-  
+
   if (!clinicId) {
     throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
   }
@@ -130,11 +130,12 @@ const deleteOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Respon
   );
 });
 
+
 export default {
   // Provider routes
   getAllClinicsForProvider,
   getClinicByIdForProvider,
-  
+
   // Clinic member routes
   getOwnClinic,
   updateOwnClinic,

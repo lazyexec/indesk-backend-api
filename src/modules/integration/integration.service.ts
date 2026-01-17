@@ -10,6 +10,7 @@ import {
   getIntegrationMetadata,
   getAllIntegrationMetadata,
 } from "./integration.metadata";
+import env from "../../configs/env";
 
 /**
  * Get all integrations for a clinic with metadata and health status
@@ -54,13 +55,12 @@ const getIntegrations = async (clinicId: string) => {
         isConfigured: existing?.isConfigured || false,
         requiresOAuth: metadata.requiresOAuth,
         oauthUrl: metadata.oauthUrl || null,
-        configSchema: metadata.configSchema || null,
         healthStatus,
         lastHealthCheck,
         updatedAt: existing?.updatedAt || null,
         createdAt: existing?.createdAt || null,
-        setupSteps: metadata.setupSteps || [],
         requiredEnvVars: metadata.requiredEnvVars || [],
+        documentation: metadata.documentation || null,
       };
     })
   );
@@ -93,8 +93,8 @@ const getOAuthUrl = async (clinicId: string, type: IntegrationType) => {
   switch (type) {
     case "google_calendar":
       // Google OAuth URL
-      const googleClientId = process.env.GOOGLE_CLIENT_ID;
-      const redirectUri = `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/google_calendar`;
+      const googleClientId = env.google.clientId;
+      const redirectUri = env.google.redirectUri;
       return `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(
         redirectUri
       )}&response_type=code&scope=${encodeURIComponent(
@@ -103,16 +103,16 @@ const getOAuthUrl = async (clinicId: string, type: IntegrationType) => {
 
     case "zoom":
       // Zoom OAuth URL
-      const zoomClientId = process.env.ZOOM_CLIENT_ID;
-      const zoomRedirectUri = `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/zoom`;
+      const zoomClientId = env.zoom.clientId;
+      const zoomRedirectUri = `${env.BACKEND_URL}/api/v1/integration/oauth/callback/zoom`;
       return `https://zoom.us/oauth/authorize?response_type=code&client_id=${zoomClientId}&redirect_uri=${encodeURIComponent(
         zoomRedirectUri
       )}&state=${state}`;
 
     case "xero":
       // Xero OAuth URL
-      const xeroClientId = process.env.XERO_CLIENT_ID;
-      const xeroRedirectUri = `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/xero`;
+      const xeroClientId = env.xero.clientId;
+      const xeroRedirectUri = `${env.BACKEND_URL}/api/v1/integration/oauth/callback/xero`;
       return `https://login.xero.com/identity/connect/authorize?response_type=code&client_id=${xeroClientId}&redirect_uri=${encodeURIComponent(
         xeroRedirectUri
       )}&scope=${encodeURIComponent(
@@ -121,28 +121,28 @@ const getOAuthUrl = async (clinicId: string, type: IntegrationType) => {
 
     case "stripe":
       // Stripe Connect OAuth URL
-      const stripeClientId = process.env.STRIPE_CONNECT_CLIENT_ID;
+      const stripeClientId = env.stripeConnect.clientId;
       if (!stripeClientId) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           "Stripe Connect client ID not configured"
         );
       }
-      const stripeRedirectUri = `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/stripe`;
+      const stripeRedirectUri = `${env.BACKEND_URL}/api/v1/integration/oauth/callback/stripe`;
       return `https://connect.stripe.com/oauth/authorize?response_type=code&client_id=${stripeClientId}&scope=read_write&redirect_uri=${encodeURIComponent(
         stripeRedirectUri
       )}&state=${state}`;
 
     case "mailchimp":
       // Mailchimp OAuth URL
-      const mailchimpClientId = process.env.MAILCHIMP_CLIENT_ID;
+      const mailchimpClientId = env.mailchimp.oauth.clientId;
       if (!mailchimpClientId) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           "Mailchimp client ID not configured"
         );
       }
-      const mailchimpRedirectUri = `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/mailchimp`;
+      const mailchimpRedirectUri = `${env.BACKEND_URL}/api/v1/integration/oauth/callback/mailchimp`;
       return `https://login.mailchimp.com/oauth2/authorize?response_type=code&client_id=${mailchimpClientId}&redirect_uri=${encodeURIComponent(
         mailchimpRedirectUri
       )}&state=${state}`;
@@ -177,7 +177,7 @@ const handleOAuthCallback = async (
   switch (type) {
     case "google_calendar":
       // Exchange Google OAuth code for tokens
-      if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      if (!env.google.clientId || !env.google.clientSecret) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           "Google OAuth credentials not configured"
@@ -190,9 +190,9 @@ const handleOAuthCallback = async (
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             code,
-            client_id: process.env.GOOGLE_CLIENT_ID,
-            client_secret: process.env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/google_calendar`,
+            client_id: env.google.clientId,
+            client_secret: env.google.clientSecret,
+            redirect_uri: env.google.redirectUri,
             grant_type: "authorization_code",
           }),
         }
@@ -209,7 +209,7 @@ const handleOAuthCallback = async (
 
     case "zoom":
       // Exchange Zoom OAuth code for tokens
-      if (!process.env.ZOOM_CLIENT_ID || !process.env.ZOOM_CLIENT_SECRET) {
+      if (!env.zoom.clientId || !env.zoom.clientSecret) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           "Zoom OAuth credentials not configured"
@@ -219,14 +219,14 @@ const handleOAuthCallback = async (
         method: "POST",
         headers: {
           Authorization: `Basic ${Buffer.from(
-            `${process.env.ZOOM_CLIENT_ID}:${process.env.ZOOM_CLIENT_SECRET}`
+            `${env.zoom.clientId}:${env.zoom.clientSecret}`
           ).toString("base64")}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
           grant_type: "authorization_code",
           code,
-          redirect_uri: `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/zoom`,
+          redirect_uri: `${env.BACKEND_URL}/api/v1/integration/oauth/callback/zoom`,
         }),
       });
       if (!zoomResponse.ok) {
@@ -241,7 +241,7 @@ const handleOAuthCallback = async (
 
     case "xero":
       // Exchange Xero OAuth code for tokens
-      if (!process.env.XERO_CLIENT_ID || !process.env.XERO_CLIENT_SECRET) {
+      if (!env.xero.clientId || !env.xero.clientSecret) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           "Xero OAuth credentials not configured"
@@ -253,14 +253,14 @@ const handleOAuthCallback = async (
           method: "POST",
           headers: {
             Authorization: `Basic ${Buffer.from(
-              `${process.env.XERO_CLIENT_ID}:${process.env.XERO_CLIENT_SECRET}`
+              `${env.xero.clientId}:${env.xero.clientSecret}`
             ).toString("base64")}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
           body: new URLSearchParams({
             grant_type: "authorization_code",
             code,
-            redirect_uri: `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/xero`,
+            redirect_uri: `${env.BACKEND_URL}/api/v1/integration/oauth/callback/xero`,
           }),
         }
       );
@@ -276,7 +276,7 @@ const handleOAuthCallback = async (
 
     case "stripe":
       // Exchange Stripe Connect OAuth code for tokens
-      if (!process.env.STRIPE_CONNECT_CLIENT_ID) {
+      if (!env.stripeConnect.clientId) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           "Stripe Connect credentials not configured"
@@ -289,7 +289,7 @@ const handleOAuthCallback = async (
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             code,
-            client_secret: process.env.STRIPE_CONNECT_CLIENT_ID,
+            client_secret: env.stripe.secretKey,
             grant_type: "authorization_code",
           }),
         }
@@ -307,8 +307,8 @@ const handleOAuthCallback = async (
     case "mailchimp":
       // Exchange Mailchimp OAuth code for tokens
       if (
-        !process.env.MAILCHIMP_CLIENT_ID ||
-        !process.env.MAILCHIMP_CLIENT_SECRET
+        !env.mailchimp.oauth.clientId ||
+        !env.mailchimp.oauth.clientSecret
       ) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -322,9 +322,9 @@ const handleOAuthCallback = async (
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
             grant_type: "authorization_code",
-            client_id: process.env.MAILCHIMP_CLIENT_ID,
-            client_secret: process.env.MAILCHIMP_CLIENT_SECRET,
-            redirect_uri: `${process.env.BACKEND_URL}/api/v1/integration/oauth/callback/mailchimp`,
+            client_id: env.mailchimp.oauth.clientId,
+            client_secret: env.mailchimp.oauth.clientSecret,
+            redirect_uri: `${env.BACKEND_URL}/api/v1/integration/oauth/callback/mailchimp`,
             code,
           }),
         }
@@ -350,8 +350,8 @@ const handleOAuthCallback = async (
     throw new ApiError(
       httpStatus.BAD_REQUEST,
       tokens.error_description ||
-        tokens.error ||
-        "Failed to obtain access token"
+      tokens.error ||
+      "Failed to obtain access token"
     );
   }
 
@@ -521,65 +521,6 @@ const checkIntegrationHealth = async (clinicId: string, type: IntegrationType) =
 };
 
 /**
- * Validate integration configuration
- * @param {IntegrationType} type
- * @param {any} config
- * @returns {Promise<{isValid: boolean, errors: string[]}>}
- */
-const validateIntegrationConfig = async (type: IntegrationType, config: any) => {
-  const metadata = getIntegrationMetadata(type);
-  const errors: string[] = [];
-
-  if (!metadata.configSchema) {
-    return { isValid: true, errors: [] };
-  }
-
-  // Validate required fields
-  for (const field of metadata.configSchema.fields) {
-    if (field.required && (!config[field.key] || config[field.key].trim() === '')) {
-      errors.push(`${field.label} is required`);
-    }
-
-    // Validate field types and formats
-    if (config[field.key]) {
-      switch (field.type) {
-        case 'select':
-          if (field.options && !field.options.includes(config[field.key])) {
-            errors.push(`${field.label} must be one of: ${field.options.join(', ')}`);
-          }
-          break;
-      }
-    }
-  }
-
-  // Type-specific validation
-  switch (type) {
-    case 'google_calendar':
-      if (config.calendarId && !config.calendarId.includes('@')) {
-        errors.push('Calendar ID should be in format: calendar@gmail.com or calendar@group.calendar.google.com');
-      }
-      break;
-
-    case 'stripe':
-      if (config.stripeUserId && !config.stripeUserId.startsWith('acct_')) {
-        errors.push('Stripe User ID should start with "acct_"');
-      }
-      break;
-
-    case 'zoom':
-      if (config.accountId && config.accountId.length < 10) {
-        errors.push('Zoom Account ID should be at least 10 characters');
-      }
-      break;
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors,
-  };
-};
-
-/**
  * Update integration configuration
  * @param {string} clinicId
  * @param {IntegrationType} type
@@ -591,15 +532,6 @@ const updateIntegrationConfig = async (
   type: IntegrationType,
   config: any
 ) => {
-  // Validate configuration
-  const validation = await validateIntegrationConfig(type, config);
-  if (!validation.isValid) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      `Configuration validation failed: ${validation.errors.join(', ')}`
-    );
-  }
-
   // Update integration
   const integration = await prisma.integration.upsert({
     where: {
@@ -686,7 +618,7 @@ const disconnectIntegration = async (clinicId: string, type: IntegrationType) =>
  */
 const getIntegrationSetupGuide = (type: IntegrationType) => {
   const metadata = getIntegrationMetadata(type);
-  
+
   return {
     type,
     name: metadata.name,
@@ -694,8 +626,6 @@ const getIntegrationSetupGuide = (type: IntegrationType) => {
     icon: metadata.icon,
     category: metadata.category,
     requiresOAuth: metadata.requiresOAuth,
-    setupSteps: metadata.setupSteps || [],
-    configSchema: metadata.configSchema,
     requiredEnvVars: metadata.requiredEnvVars || [],
     documentation: metadata.documentation || null,
   };
@@ -706,7 +636,6 @@ export default {
   getOAuthUrl,
   handleOAuthCallback,
   checkIntegrationHealth,
-  validateIntegrationConfig,
   updateIntegrationConfig,
   disconnectIntegration,
   getIntegrationSetupGuide,

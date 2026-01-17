@@ -29,8 +29,8 @@ const addMember = catchAsync(async (req: Request, res: Response) => {
         member: result.member,
         ...(result.generatedPassword &&
           env.DEBUG && {
-            temporaryPassword: result.generatedPassword,
-          }),
+          temporaryPassword: result.generatedPassword,
+        }),
       },
     })
   );
@@ -112,10 +112,26 @@ const updateMemberRole = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const getCliniciansByToken = catchAsync(async (req: Request, res: Response) => {
+  const { token } = req.params;
+  const options = pick(req.query, ["limit", "page", "sort"]);
+
+  const result = await clinicMemberService.getCliniciansByToken(token, options);
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinicians retrieved successfully",
+      data: result,
+    })
+  );
+});
+
 export default {
   addMember,
   getMembers,
   removeMember,
   updateMember,
   updateMemberRole,
+  getCliniciansByToken,
 };

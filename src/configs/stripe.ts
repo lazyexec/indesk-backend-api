@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import env from "./env";
 
 // Initialize Stripe with API version
-const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
+const stripe = new Stripe(env.stripe.secretKey, {
   apiVersion: "2025-12-15.clover",
 });
 
@@ -350,7 +350,7 @@ const verifyWebhook = (
   return stripe.webhooks.constructEvent(
     payload,
     signature,
-    secret || env.STRIPE_WEBHOOK_SECRET
+    secret || env.stripe.webhookSecret
   );
 };
 

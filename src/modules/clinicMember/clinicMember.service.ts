@@ -438,10 +438,80 @@ const updateClinicMemberRole = async (
   return updatedMember;
 };
 
+const getCliniciansByToken = async (token: string, options: any) => {
+  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
+
+  // Find the clinic by public token
+  const clinic = await prisma.clinic.findFirst({
+    where: { publicToken: token },
+  });
+
+  if (!clinic) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
+  }
+
+  // Get all clinicians for this clinic
+  const [clinicians, totalDocs] = await Promise.all([
+    prisma.clinicMember.findMany({
+      where: {
+        clinicId: clinic.id,
+        role: "clinician",
+      },
+      select: {
+        id: true,
+        role: true,
+        availability: true,
+        specialization: true,
+        clinicianToken: true,
+        createdAt: true,
+        updatedAt: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            bio: true,
+          },
+        },
+      },
+      take: Number(limit),
+      skip: (Number(page) - 1) * Number(limit),
+      orderBy: sort,
+    }),
+    prisma.clinicMember.count({
+      where: {
+        clinicId: clinic.id,
+        role: "clinician",
+      },
+    }),
+  ]);
+
+  return {
+    clinic: {
+      id: clinic.id,
+      name: clinic.name,
+      email: clinic.email,
+      phoneNumber: clinic.phoneNumber,
+      address: clinic.address,
+      logo: clinic.logo,
+    },
+    clinicians: {
+      docs: clinicians,
+      totalDocs,
+      limit: Number(limit),
+      page: Number(page),
+      totalPages: Math.ceil(totalDocs / Number(limit)),
+    },
+  };
+};
+
 export default {
   addClinicMember,
   getClinicMembers,
   removeClinicMember,
   updateClinicMember,
   updateClinicMemberRole,
+  getCliniciansByToken,
 };

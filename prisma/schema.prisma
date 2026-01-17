@@ -94,7 +94,6 @@ enum SubscriptionStatus {
   trialing
 }
 
-
 model User {
   id                         String               @id @default(uuid())
   email                      String               @unique
@@ -158,6 +157,7 @@ model Clinic {
   color       String?
   description String?
   permissions Json    @default("{}")
+  publicToken String? @unique // Token for public clinic access
 
   // Activation status for purchase flow
   isActive    Boolean   @default(false)
@@ -181,6 +181,7 @@ model Clinic {
   transactions        Transaction[]
 
   @@index([ownerId])
+  @@index([publicToken])
 }
 
 model Integration {
@@ -297,24 +298,25 @@ model Session {
 }
 
 model Appointment {
-  id               String            @id @default(uuid())
-  clinicId         String
-  clinicianId      String
-  addedBy          String
-  clientId         String
-  sessionId        String
-  status           AppointmentStatus @default(pending)
-  startTime        DateTime
-  endTime          DateTime
-  note             String?
-  meetingType      MeetingType       @default(zoom)
-  zoomJoinUrl      String?
-  zoomStartUrl     String?
-  zoomMeetingId    String?
-  appointmentToken String?           @unique
-  transactionId    String?
-  invoiceId        String?
-  via              String?           @default("admin")
+  id                    String            @id @default(uuid())
+  clinicId              String
+  clinicianId           String
+  addedBy               String
+  clientId              String
+  sessionId             String
+  status                AppointmentStatus @default(pending)
+  startTime             DateTime
+  endTime               DateTime
+  note                  String?
+  meetingType           MeetingType       @default(zoom)
+  zoomJoinUrl           String?
+  zoomStartUrl          String?
+  zoomMeetingId         String?
+  googleCalendarEventId String?
+  appointmentToken      String?           @unique
+  transactionId         String?
+  invoiceId             String?
+  via                   String?           @default("admin")
 
   // Relations
   transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
@@ -437,17 +439,17 @@ model AssessmentResponse {
 
 model Transaction {
   id            String   @id @default(uuid())
-  sessionId     String?  // Optional for clinic purchases
-  clientId      String?  // Optional for clinic purchases
-  clinicId      String?  // For clinic purchase transactions
-  userId        String?  // User who made the transaction
+  sessionId     String? // Optional for clinic purchases
+  clientId      String? // Optional for clinic purchases
+  clinicId      String? // For clinic purchase transactions
+  userId        String? // User who made the transaction
   transactionId String?  @unique
   amount        Float?
-  type          String?  // "appointment", "clinic_purchase", "subscription", etc.
-  method        String?  // "stripe", "cash", etc.
-  status        String?  // "pending", "completed", "failed", "refunded"
+  type          String? // "appointment", "clinic_purchase", "subscription", etc.
+  method        String? // "stripe", "cash", etc.
+  status        String? // "pending", "completed", "failed", "refunded"
   description   String?
-  meta          Json?    // Store additional data like planId, stripeSessionId, etc.
+  meta          Json? // Store additional data like planId, stripeSessionId, etc.
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -475,6 +477,7 @@ model Invoice {
   status      InvoiceStatus @default(pending)
   issueDate   DateTime
   dueDate     DateTime
+  publicToken String?       @unique // Token for public invoice access
 
   appointments Appointment[]
 
@@ -483,41 +486,42 @@ model Invoice {
 
   @@index([clientId])
   @@index([clinicId])
+  @@index([publicToken])
 }
 
 model Plan {
-  id            String        @id @default(uuid())
-  name          String        @unique
-  type          PlanType      @unique
-  description   String?
-  price         Float         @default(0)
-  clientLimit   Int           @default(0) // 0 means unlimited
-  features      Json          @default("{}") // JSON object with feature flags
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  
+  id          String   @id @default(uuid())
+  name        String   @unique
+  type        PlanType @unique
+  description String?
+  price       Float    @default(0)
+  clientLimit Int      @default(0) // 0 means unlimited
+  features    Json     @default("{}") // JSON object with feature flags
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   subscriptions Subscription[]
 
   @@index([type])
 }
 
 model Subscription {
-  id                String             @id @default(uuid())
-  clinicId          String             @unique
-  clinic            Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  planId            String
-  plan              Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
-  status            SubscriptionStatus @default(active)
-  stripeCustomerId  String?            @unique
-  stripeSubscriptionId String?         @unique
-  currentPeriodStart DateTime?
-  currentPeriodEnd   DateTime?
-  trialStart        DateTime?
-  trialEnd          DateTime?
-  cancelledAt       DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                   String             @id @default(uuid())
+  clinicId             String             @unique
+  clinic               Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  planId               String
+  plan                 Plan               @relation(fields: [planId], references: [id], onDelete: Restrict)
+  status               SubscriptionStatus @default(active)
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  trialStart           DateTime?
+  trialEnd             DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   @@index([clinicId])
   @@index([planId])
@@ -555,29 +559,29 @@ model UserIssue {
   type        IssueType
   priority    IssuePriority @default(medium)
   status      IssueStatus   @default(open)
-  
+
   // Reporter information
   reporterId String
-  reporter   User          @relation(fields: [reporterId], references: [id], onDelete: Cascade)
-  
+  reporter   User   @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
   // Clinic context (optional - for clinic-specific issues)
-  clinicId   String?
-  clinic     Clinic?       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
-  
+  clinicId String?
+  clinic   Clinic? @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
   // Additional context
-  browserInfo    String?  // Browser/device info
-  url            String?  // Page where issue occurred
-  steps          String?  // Steps to reproduce
-  expectedResult String?  // What should happen
-  actualResult   String?  // What actually happened
+  browserInfo    String? // Browser/device info
+  url            String? // Page where issue occurred
+  steps          String? // Steps to reproduce
+  expectedResult String? // What should happen
+  actualResult   String? // What actually happened
   attachments    String[] @default([]) // File URLs/paths
-  
+
   // Admin response
   adminResponse String?
   adminId       String?
   admin         User?     @relation("AdminResponse", fields: [adminId], references: [id])
   resolvedAt    DateTime?
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -74,15 +74,15 @@ const getAppointmentSessionByToken = catchAsync(
 const applyAppointmentWithToken = catchAsync(
   async (req: Request, res: Response) => {
     const token: string = req.params.token;
-    const appointment = await AppointmentService.applyAppointmentWithToken(
+    const result = await AppointmentService.applyAppointmentWithToken(
       token,
       req.body
     );
-    res.status(httpStatus.OK).json(
+    res.status(httpStatus.CREATED).json(
       response({
-        status: httpStatus.OK,
-        message: "Appointment retrieved successfully",
-        data: appointment,
+        status: httpStatus.CREATED,
+        message: "Appointment created successfully",
+        data: result,
       })
     );
   }
@@ -170,7 +170,7 @@ const getUnpaidAppointments = catchAsync(
 const getClinicCalendarAppointments = catchAsync(
   async (req: Request, res: Response) => {
     const userId: string = req.user?.id!;
-    
+
     // Get clinic ID from user
     const clinicMember = await prisma.clinicMember.findFirst({
       where: { userId },
@@ -196,13 +196,13 @@ const getClinicCalendarAppointments = catchAsync(
 
     const filter = pick(req.query, ["startDate", "endDate", "status", "view"]);
     const options = pick(req.query, ["page", "limit", "sort"]);
-    
+
     const result = await AppointmentService.getClinicCalendarAppointments(
       clinicId,
       filter,
       options
     );
-    
+
     res.status(httpStatus.OK).json(
       response({
         status: httpStatus.OK,
@@ -215,7 +215,7 @@ const getClinicCalendarAppointments = catchAsync(
 
 const getClinicianSchedule = catchAsync(async (req: Request, res: Response) => {
   const userId: string = req.user?.id!;
-  
+
   // Get clinician ID from user
   const clinicMember = await prisma.clinicMember.findFirst({
     where: { userId },
@@ -234,13 +234,13 @@ const getClinicianSchedule = catchAsync(async (req: Request, res: Response) => {
 
   const filter = pick(req.query, ["startDate", "endDate", "status", "view"]);
   const options = pick(req.query, ["page", "limit", "sort"]);
-  
+
   const result = await AppointmentService.getClinicianSchedule(
     clinicMember.id,
     filter,
     options
   );
-  
+
   res.status(httpStatus.OK).json(
     response({
       status: httpStatus.OK,
@@ -255,13 +255,13 @@ const getAppointmentsByClinicMemberId = catchAsync(
     const { clinicMemberId } = req.params;
     const filter = pick(req.query, ["startDate", "endDate", "status"]);
     const options = pick(req.query, ["page", "limit", "sort"]);
-    
+
     const result = await AppointmentService.getAppointmentsByClinicMemberId(
       clinicMemberId,
       filter,
       options
     );
-    
+
     res.status(httpStatus.OK).json(
       response({
         status: httpStatus.OK,
@@ -274,7 +274,7 @@ const getAppointmentsByClinicMemberId = catchAsync(
 
 const getCalendarStats = catchAsync(async (req: Request, res: Response) => {
   const userId: string = req.user?.id!;
-  
+
   // Get clinic ID from user
   const clinicMember = await prisma.clinicMember.findFirst({
     where: { userId },
@@ -299,9 +299,9 @@ const getCalendarStats = catchAsync(async (req: Request, res: Response) => {
   }
 
   const filter = pick(req.query, ["startDate", "endDate"]);
-  
+
   const result = await AppointmentService.getCalendarStats(clinicId, filter);
-  
+
   res.status(httpStatus.OK).json(
     response({
       status: httpStatus.OK,

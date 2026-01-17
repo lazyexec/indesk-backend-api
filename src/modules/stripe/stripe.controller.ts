@@ -17,7 +17,16 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
 
   let event;
   try {
+    // Verify webhook signature
     event = stripeConfig.verifyWebhook(req.body, signature);
+
+    // Log the event for debugging
+    console.log(`Received Stripe webhook: ${event.type}`);
+
+    // Check if this is a Connect event (has account property)
+    if (event.account) {
+      console.log(`Event from connected account: ${event.account}`);
+    }
   } catch (err: any) {
     throw new ApiError(httpStatus.BAD_REQUEST, `Webhook Error: ${err.message}`);
   }

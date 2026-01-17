@@ -9,6 +9,15 @@ const getAllTransactions = {
   }),
 };
 
+const getClinicTransactions = {
+  query: Joi.object().keys({
+    page: Joi.number().integer().min(1).optional(),
+    limit: Joi.number().integer().min(1).max(100).optional(),
+    type: Joi.string().optional(),
+    status: Joi.string().valid("pending", "completed", "failed", "cancelled").optional(),
+  }),
+};
+
 const getTransaction = {
   params: Joi.object().keys({
     transactionId: Joi.custom(validator.objectId).required(),
@@ -17,5 +26,6 @@ const getTransaction = {
 
 export default {
   getAllTransactions,
+  getClinicTransactions,
   getTransaction,
 };

@@ -8,13 +8,14 @@ import googleCalendarIntegration from "../integration/services/google-calendar.i
 import stripeIntegration from "../integration/services/stripe.integration";
 import zoomIntegration from "../integration/services/zoom.integration";
 import { isIntegrationConnected } from "../integration/integration.helper";
+import env from "../../configs/env";
 
 interface ICreateAppointment {
-  clientId: string; // Changed from client object to clientId
+  clientId: string;
   sessionId: string;
   clinicianId: string;
-  date: Date;
-  time: Date;
+  date?: Date; // Optional for backward compatibility
+  time: Date; // This should be the full datetime
   note?: string;
   meetingType?: "in_person" | "zoom";
   via?: "token" | "admin";
@@ -49,17 +50,31 @@ const createAppointment = async (
     throw new ApiError(httpStatus.NOT_FOUND, "Session not found");
   }
 
-  const appointmentDate = new Date(date);
-  const appointmentTime = new Date(time);
+  // Handle both cases: separate date/time or combined datetime
+  let startTime: Date;
 
-  const startTime = new Date(
-    appointmentDate.getFullYear(),
-    appointmentDate.getMonth(),
-    appointmentDate.getDate(),
-    appointmentTime.getHours(),
-    appointmentTime.getMinutes(),
-    appointmentTime.getSeconds()
-  );
+  if (date) {
+    // Legacy format: separate date and time
+    const appointmentDate = new Date(date);
+    const appointmentTime = new Date(time);
+
+    startTime = new Date(
+      appointmentDate.getFullYear(),
+      appointmentDate.getMonth(),
+      appointmentDate.getDate(),
+      appointmentTime.getHours(),
+      appointmentTime.getMinutes(),
+      appointmentTime.getSeconds()
+    );
+  } else {
+    // New format: time is the full datetime
+    startTime = new Date(time);
+  }
+
+  // Validate the date is valid
+  if (isNaN(startTime.getTime())) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Invalid date/time provided");
+  }
 
   const duration = session.duration;
   const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
@@ -111,6 +126,7 @@ const createAppointment = async (
   try {
     const hasStripe = await isIntegrationConnected(session.clinicId, "stripe");
     if (hasStripe) {
+      // Use clinic's Stripe Connect integration
       const payment = await stripeIntegration.createPaymentLink(
         session.clinicId,
         {
@@ -125,11 +141,12 @@ const createAppointment = async (
         }
       );
       paymentUrl = payment.url;
-      // TODO: Send payment link to client via email
+    } else {
+      throw new ApiError(httpStatus.BAD_REQUEST, "Payment isn't configured for the clinic")
     }
   } catch (error) {
     console.error("Failed to create Stripe payment link:", error);
-    // Continue without payment link
+    throw new ApiError(httpStatus.BAD_REQUEST, "Failed to create Payment Intent!")
   }
 
   // Create Zoom meeting if meetingType is zoom and integration is connected
@@ -150,11 +167,6 @@ const createAppointment = async (
         zoomJoinUrl = meeting.joinUrl;
         zoomStartUrl = meeting.startUrl;
         zoomMeetingId = meeting.meetingId;
-      } else {
-        // Fallback to dummy URL if Zoom not connected
-        zoomJoinUrl = null;
-        zoomStartUrl = null;
-        zoomMeetingId = null;
       }
     } catch (error) {
       console.error("Failed to create Zoom meeting:", error);
@@ -164,7 +176,30 @@ const createAppointment = async (
     }
   }
 
-  // Create appointment
+  // Create Google Calendar event if integration is connected (BEFORE creating appointment)
+  let googleCalendarEventId: string | null = null;
+  try {
+    const hasGoogleCalendar = await isIntegrationConnected(
+      session.clinicId,
+      "google_calendar"
+    );
+    if (hasGoogleCalendar) {
+      const calendarEvent = await googleCalendarIntegration.createCalendarEvent(session.clinicId, {
+        title: `${session.name} - ${client.firstName} ${client.lastName}`,
+        description: note || `Appointment for ${session.name}`,
+        startTime,
+        endTime,
+        attendees: [client.email],
+        location: meetingType === "zoom" ? zoomJoinUrl || undefined : undefined,
+      });
+      googleCalendarEventId = calendarEvent.eventId;
+    }
+  } catch (error) {
+    console.error("Failed to create Google Calendar event:", error);
+    // Continue without calendar event
+  }
+
+  // Create appointment with all integration IDs
   const appointment = await prisma.appointment.create({
     data: {
       clinicId: session.clinicId,
@@ -181,6 +216,7 @@ const createAppointment = async (
       zoomJoinUrl,
       zoomStartUrl,
       zoomMeetingId,
+      googleCalendarEventId,
       via,
     },
     include: {
@@ -208,28 +244,10 @@ const createAppointment = async (
     },
   });
 
-  // Create Google Calendar event if integration is connected
-  try {
-    const hasGoogleCalendar = await isIntegrationConnected(
-      session.clinicId,
-      "google_calendar"
-    );
-    if (hasGoogleCalendar) {
-      await googleCalendarIntegration.createCalendarEvent(session.clinicId, {
-        title: `${session.name} - ${client.firstName} ${client.lastName}`,
-        description: note || `Appointment for ${session.name}`,
-        startTime,
-        endTime,
-        attendees: [client.email],
-        location: meetingType === "zoom" ? zoomJoinUrl || undefined : undefined,
-      });
-    }
-  } catch (error) {
-    console.error("Failed to create Google Calendar event:", error);
-    // Continue without calendar event
-  }
-
-  return appointment;
+  return {
+    appointment,
+    paymentUrl,
+  };
 };
 
 // Token-based appointment creation (public access)
@@ -272,7 +290,7 @@ const applyAppointmentWithToken = async (token: string, body: any) => {
   }
 
   // Call the reusable createAppointment function
-  const appointment = await createAppointment(clinician.id, {
+  const result = await createAppointment(clinician.id, {
     ...rest,
     clientId: client.id,
     clinicianId: clinician.id,
@@ -280,18 +298,48 @@ const applyAppointmentWithToken = async (token: string, body: any) => {
     via: "token",
   });
 
-  return appointment;
+  return {
+    appointment: result.appointment,
+    paymentUrl: result.paymentUrl,
+  };
 };
 
 // Admin/Employee appointment creation
 const createAppointByEmployees = async (
-  addedBy: string,
+  userId: string,
   appointmentBody: ICreateAppointment
 ) => {
-  // Simply call the reusable createAppointment function
-  const appointment = await createAppointment(addedBy, appointmentBody);
+  // Get session to find clinic ID
+  const session = await prisma.session.findUnique({
+    where: { id: appointmentBody.sessionId },
+    select: { clinicId: true },
+  });
 
-  return appointment;
+  if (!session) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Session not found");
+  }
+
+  // Get clinic member ID for the user
+  const clinicMember = await prisma.clinicMember.findFirst({
+    where: {
+      userId,
+      clinicId: session.clinicId,
+    },
+    select: { id: true },
+  });
+
+  if (!clinicMember) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "You don't have access to this clinic"
+    );
+  }
+
+  // Call the reusable createAppointment function with clinic member ID
+  const result = await createAppointment(clinicMember.id, appointmentBody);
+
+  // For admin/employee creation, we don't need to return payment URL
+  return result.appointment;
 };
 
 // Admin/Clinician: Get all appointments with filters
@@ -400,9 +448,55 @@ const updateAppointmentStatus = async (appointmentId: string, status: any) => {
 const deleteAppointment = async (appointmentId: string) => {
   const appointment = await prisma.appointment.findUnique({
     where: { id: appointmentId },
+    include: {
+      clinic: {
+        select: {
+          id: true,
+        },
+      },
+    },
   });
+
   if (!appointment) {
     throw new ApiError(httpStatus.NOT_FOUND, "Appointment not found");
+  }
+
+  // Delete Google Calendar event if it exists
+  if (appointment.googleCalendarEventId) {
+    try {
+      const hasGoogleCalendar = await isIntegrationConnected(
+        appointment.clinicId,
+        "google_calendar"
+      );
+      if (hasGoogleCalendar) {
+        await googleCalendarIntegration.deleteCalendarEvent(
+          appointment.clinicId,
+          appointment.googleCalendarEventId
+        );
+      }
+    } catch (error) {
+      console.error("Failed to delete Google Calendar event:", error);
+      // Continue with appointment deletion even if calendar deletion fails
+    }
+  }
+
+  // Delete Zoom meeting if it exists
+  if (appointment.zoomMeetingId) {
+    try {
+      const hasZoom = await isIntegrationConnected(
+        appointment.clinicId,
+        "zoom"
+      );
+      if (hasZoom) {
+        await zoomIntegration.deleteMeeting(
+          appointment.clinicId,
+          appointment.zoomMeetingId
+        );
+      }
+    } catch (error) {
+      console.error("Failed to delete Zoom meeting:", error);
+      // Continue with appointment deletion even if Zoom deletion fails
+    }
   }
 
   await prisma.appointment.delete({
@@ -496,37 +590,43 @@ const getAppointmentById = async (appointmentId: string) => {
   return appointment;
 };
 
-// Anyone with the token can get the session
+// Anyone with the token can get the clinic's sessions
 const getAppointmentSessionByToken = async (token: string, options: any) => {
   const { page = 1, limit = 10, sort = { createdAt: "desc" } } = options;
   const skip = (Number(page) - 1) * Number(limit);
   const take = Number(limit);
 
-  const seesions = await prisma.clinicMember.findUnique({
+  // Find the clinician by token
+  const clinician = await prisma.clinicMember.findUnique({
     where: { clinicianToken: token },
-    include: {
-      clinic: {
-        select: {
-          sessions: {
-            skip,
-            take,
-            orderBy: sort,
-          },
-        },
-      },
+    select: {
+      clinicId: true,
     },
   });
 
-  if (!seesions) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Session not found");
+  if (!clinician) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinician not found");
   }
 
+  // Get total count of sessions for the clinic
+  const totalDocs = await prisma.session.count({
+    where: { clinicId: clinician.clinicId },
+  });
+
+  // Get paginated sessions for the clinic
+  const sessions = await prisma.session.findMany({
+    where: { clinicId: clinician.clinicId },
+    skip,
+    take,
+    orderBy: sort,
+  });
+
   return {
-    docs: seesions.clinic.sessions,
-    totalDocs: seesions.clinic.sessions.length,
+    docs: sessions,
+    totalDocs,
     limit: take,
     page: Number(page),
-    totalPages: Math.ceil(seesions.clinic.sessions.length / take),
+    totalPages: Math.ceil(totalDocs / take),
   };
 };
 
@@ -594,10 +694,10 @@ const getClinicCalendarAppointments = async (
   options: any
 ) => {
   const { startDate, endDate, view = 'month' } = filter;
-  
+
   // Default date range based on view
   let dateRange: { gte: Date; lte: Date };
-  
+
   if (startDate && endDate) {
     dateRange = {
       gte: new Date(startDate),
@@ -608,7 +708,7 @@ const getClinicCalendarAppointments = async (
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    
+
     dateRange = {
       gte: startOfMonth,
       lte: endOfMonth,
@@ -695,10 +795,10 @@ const getClinicianSchedule = async (
   options: any
 ) => {
   const { startDate, endDate, view = 'month' } = filter;
-  
+
   // Default date range based on view
   let dateRange: { gte: Date; lte: Date };
-  
+
   if (startDate && endDate) {
     dateRange = {
       gte: new Date(startDate),
@@ -709,7 +809,7 @@ const getClinicianSchedule = async (
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    
+
     dateRange = {
       gte: startOfMonth,
       lte: endOfMonth,
@@ -859,10 +959,10 @@ const getAppointmentsByClinicMemberId = async (
 // Get calendar statistics for dashboard
 const getCalendarStats = async (clinicId: string, filter: any) => {
   const { startDate, endDate } = filter;
-  
+
   // Default to current month if no dates provided
   let dateRange: { gte: Date; lte: Date };
-  
+
   if (startDate && endDate) {
     dateRange = {
       gte: new Date(startDate),
@@ -872,7 +972,7 @@ const getCalendarStats = async (clinicId: string, filter: any) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    
+
     dateRange = {
       gte: startOfMonth,
       lte: endOfMonth,
@@ -895,12 +995,12 @@ const getCalendarStats = async (clinicId: string, filter: any) => {
     prisma.appointment.count({ where: { ...where, status: 'completed' } }),
     prisma.appointment.count({ where: { ...where, status: 'pending' } }),
     prisma.appointment.count({ where: { ...where, status: 'cancelled' } }),
-    prisma.appointment.count({ 
-      where: { 
-        ...where, 
+    prisma.appointment.count({
+      where: {
+        ...where,
         status: { in: ['pending', 'scheduled'] },
         startTime: { gte: new Date() }
-      } 
+      }
     }),
   ]);
 

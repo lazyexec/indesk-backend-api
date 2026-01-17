@@ -7,8 +7,6 @@ import {
   retryWithBackoff,
 } from "../integration.helper";
 import { IntegrationType } from "../../../../generated/prisma/client";
-import ApiError from "../../../utils/ApiError";
-import httpStatus from "http-status";
 import env from "../../../configs/env";
 
 const INTEGRATION_TYPE = IntegrationType.google_calendar;
@@ -20,9 +18,9 @@ const getOAuth2Client = async (clinicId: string) => {
   const config = await getIntegrationConfig(clinicId, INTEGRATION_TYPE);
 
   const oauth2Client = new google.auth.OAuth2(
-    env.GOOGLE_CLIENT_ID,
-    env.GOOGLE_CLIENT_SECRET,
-    `${env.BACKEND_URL}/api/v1/integration/oauth/callback/google_calendar`
+    env.google.clientId,
+    env.google.clientSecret,
+    env.google.redirectUri
   );
 
   oauth2Client.setCredentials({
@@ -51,8 +49,8 @@ const refreshAccessToken = async (clinicId: string): Promise<void> => {
     const config = await getIntegrationConfig(clinicId, INTEGRATION_TYPE);
 
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET
+      env.google.clientId,
+      env.google.clientSecret
     );
 
     oauth2Client.setCredentials({

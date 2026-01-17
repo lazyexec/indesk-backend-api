@@ -63,8 +63,9 @@ const handleOAuthCallback = {
       .required(),
   }),
   query: Joi.object().keys({
-    code: Joi.string().required(),
-    state: Joi.string().required(),
+    code: Joi.string().optional(),
+    state: Joi.string().optional(),
+    scope: Joi.string().optional(),
     error: Joi.string().optional(),
   }),
 };

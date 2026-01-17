@@ -80,6 +80,7 @@ const getClinics = {
   }),
 };
 
+
 export default {
   createClinic,
   getClinic,

@@ -235,10 +235,92 @@ const createCampaign = async (
   }
 };
 
+/**
+ * Send transactional email (one-to-one email)
+ */
+const sendTransactionalEmail = async (
+  clinicId: string,
+  data: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+    fromName?: string;
+    fromEmail?: string;
+  }
+): Promise<{ success: boolean; messageId?: string }> => {
+  try {
+    const config = await getIntegrationConfig(clinicId, INTEGRATION_TYPE);
+    const client = await getMailchimpClient(clinicId);
+
+    // For transactional emails, we'll use Mailchimp's API to send directly
+    // First, ensure the recipient is in the audience
+    if (config.audienceId) {
+      try {
+        await client.lists.setListMember(config.audienceId, data.to, {
+          email_address: data.to,
+          status_if_new: "subscribed",
+        });
+      } catch (error) {
+        // Ignore if already exists
+      }
+    }
+
+    // Create and send a campaign to a specific segment (single recipient)
+    const campaign = (await retryWithBackoff(() =>
+      client.campaigns.create({
+        type: "regular",
+        recipients: {
+          list_id: config.audienceId,
+        },
+        settings: {
+          subject_line: data.subject,
+          from_name: data.fromName || config.fromName || "InDesk",
+          reply_to: data.fromEmail || config.fromEmail || "noreply@indesk.com",
+          title: `Transactional: ${data.subject}`,
+        },
+      })
+    )) as any;
+
+    // Set campaign content
+    await retryWithBackoff(() =>
+      client.campaigns.setContent(campaign.id, {
+        html: data.html,
+        plain_text: data.text,
+      })
+    );
+
+    // Send campaign
+    await retryWithBackoff(() => client.campaigns.send(campaign.id));
+
+    return {
+      success: true,
+      messageId: campaign.id,
+    };
+  } catch (error: any) {
+    handleApiError(error, "Mailchimp");
+    return { success: false };
+  }
+};
+
+/**
+ * Check if Mailchimp is connected for clinic
+ */
+const isMailchimpConnected = async (clinicId: string): Promise<boolean> => {
+  try {
+    const config = await getIntegrationConfig(clinicId, INTEGRATION_TYPE);
+    return !!config.accessToken && !!config.audienceId;
+  } catch (error) {
+    return false;
+  }
+};
+
 export default {
   addOrUpdateContact,
   removeContact,
   addTagsToContact,
   getContact,
   createCampaign,
+  sendTransactionalEmail,
+  isMailchimpConnected,
 };

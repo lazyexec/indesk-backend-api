@@ -7,6 +7,7 @@ import subscriptionService from "../subscription/subscription.service";
 import planService from "../subscription/plan.service";
 import permissions from "../../configs/permissions";
 import stripeConfig from "../../configs/stripe";
+import env from "../../configs/env";
 
 interface IPurchaseData {
   // Clinic details
@@ -22,13 +23,13 @@ interface IPurchaseData {
     country: string;
   };
   description?: string;
-  
+
   // Subscription details
   planType: PlanType;
-  
+
   // Payment details (for Stripe)
   paymentMethodId?: string;
-  
+
   // Optional: Trial or immediate activation
   startTrial?: boolean;
 }
@@ -66,15 +67,16 @@ const initiatePurchase = async (
   });
 
   if (existingClinic) {
-    if (existingClinic.isActive){
+    if (existingClinic.isActive) {
       throw new ApiError(
         httpStatus.CONFLICT,
         "You already own a clinic. Each user can only own one clinic."
       );
-    }else{
-      await prisma.clinic.delete({where:
+    } else {
+      await prisma.clinic.delete({
+        where:
         {
-          ownerId : userId
+          ownerId: userId
         }
       })
     }
@@ -82,7 +84,7 @@ const initiatePurchase = async (
 
   // Get the selected plan
   const plan = await planService.getPlanByType(planType);
-  
+
   // Create pending clinic (not activated yet)
   const clinic = await prisma.clinic.create({
     data: {
@@ -99,7 +101,7 @@ const initiatePurchase = async (
   });
 
   let checkoutUrl: string;
-  
+
   if (startTrial || plan.price === 0) {
     // For free plans or trials, no payment needed - return a special URL
     checkoutUrl = "no_payment_required";
@@ -124,8 +126,8 @@ const initiatePurchase = async (
         planId: plan.id,
         planType: plan.type,
       },
-      successUrl: `${process.env.FRONTEND_URL}/clinic/setup/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancelUrl: `${process.env.FRONTEND_URL}/clinic/setup/cancelled`,
+      successUrl: `${env.FRONTEND_URL}/clinic/setup/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${env.FRONTEND_URL}/clinic/setup/cancelled`,
       customerEmail: clinicEmail,
     });
 
@@ -150,7 +152,7 @@ const completePurchase = async (
 ): Promise<IPurchaseResult> => {
   // Retrieve payment intent from Stripe to get metadata
   const paymentIntent = await stripeConfig.getPaymentIntent(paymentIntentId);
-  
+
   if (paymentIntent.status !== "succeeded") {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
@@ -283,7 +285,7 @@ const completeFreePurchase = async (
     clinic: activatedClinic,
     subscription,
     setupComplete: true,
-    message: plan.type === "free" 
+    message: plan.type === "free"
       ? "Free clinic setup completed! You can now start managing your clinic."
       : "Trial clinic setup completed! You have 14 days to explore all features.",
   };
@@ -326,7 +328,7 @@ const cancelPurchase = async (userId: string, clinicId: string): Promise<void> =
  */
 const getAvailablePlans = async () => {
   const plans = await planService.getAllPlans();
-  
+
   return plans.map(plan => ({
     id: plan.id,
     name: plan.name,
@@ -372,7 +374,7 @@ const getPurchaseStatus = async (userId: string) => {
   }
 
   const activeSubscription = clinic.subscription;
-  
+
   return {
     hasClinic: true,
     clinicId: clinic.id,
