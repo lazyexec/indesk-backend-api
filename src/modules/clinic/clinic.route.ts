@@ -11,48 +11,47 @@ const upload = uploader("./public/uploads/all").fields([
 
 const router: Router = express.Router();
 
-router.post(
-  "/",
-  auth("provider"),
-  validate(clinicValidation.createClinic),
-  upload,
-  clinicController.createClinic
-);
-
+// Provider routes (admin access to all clinics)
 router.get(
-  "/",
+  "/provider/all",
   auth("provider"),
   validate(clinicValidation.getClinics),
-  clinicController.getClinics
+  clinicController.getAllClinicsForProvider
 );
 
 router.get(
-  "/:clinicId",
+  "/provider/:clinicId",
   auth("provider"),
   validate(clinicValidation.getClinic),
-  clinicController.getClinic
+  clinicController.getClinicByIdForProvider
+);
+
+// Clinic member routes (uses authenticated user's clinic)
+router.get(
+  "/",
+  auth('common'),
+  clinicController.getOwnClinic
 );
 
 router.put(
-  "/:clinicId",
+  "/",
   auth("commonAdmin"),
   validate(clinicValidation.updateClinic),
   upload,
-  clinicController.updateClinic
+  clinicController.updateOwnClinic
 );
 
 router.patch(
-  "/:clinicId/permissions",
-  auth("commonAdmin"),
+  "/permissions",
+  auth("clinician_permissions"),
   validate(clinicValidation.updatePermissions),
-  clinicController.updatePermissions
+  clinicController.updateOwnClinicPermissions
 );
 
 router.delete(
-  "/:clinicId",
-  auth("commonAdmin"),
-  validate(clinicValidation.deleteClinic),
-  clinicController.deleteClinic
+  "/",
+  auth("superAdmin"),
+  clinicController.deleteOwnClinic
 );
 
 export default router;

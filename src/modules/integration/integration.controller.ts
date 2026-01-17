@@ -95,7 +95,7 @@ const updateIntegrationConfig = catchAsync(async (req: Request, res: Response) =
   }
 
   const { type } = req.params;
-  const { config } = req.body;
+  const  config  = req.body;
 
   const integration = await integrationService.updateIntegrationConfig(
     clinicId,

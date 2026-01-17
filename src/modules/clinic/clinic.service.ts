@@ -84,12 +84,32 @@ const getClinicById = async (clinicId: string) => {
   const clinic = await prisma.clinic.findUnique({
     where: { id: clinicId },
     include: {
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+              phoneNumber: true,
+              countryCode: true,
+              bio: true,
+              role: true,
+            },
+          },
+        },
+      },
       owner: {
         select: {
           id: true,
           email: true,
           firstName: true,
           lastName: true,
+          avatar: true,
+          phoneNumber: true,
+          countryCode: true,
         },
       },
     },

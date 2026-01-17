@@ -29,9 +29,6 @@ const getClinic = {
 };
 
 const updateClinic = {
-  params: Joi.object().keys({
-    clinicId: Joi.string().uuid().required(),
-  }),
   body: Joi.object().keys({
     name: Joi.string().min(2).max(100).optional(),
     email: Joi.string().email().optional(),
@@ -53,20 +50,20 @@ const updateClinic = {
 };
 
 const updatePermissions = {
-  params: Joi.object().keys({
-    clinicId: Joi.string().uuid().required(),
-  }),
   body: Joi.object().keys({
+    // Core permissions
     clinician_dashboard: Joi.boolean().optional(),
+    clinician_permissions: Joi.boolean().optional(),
+    clinician_ai: Joi.boolean().optional(),
     clinician_clients: Joi.boolean().optional(),
     clinician_clinicians: Joi.boolean().optional(),
-    clinician_sessions: Joi.boolean().optional(),
     clinician_invoices: Joi.boolean().optional(),
+    clinician_sessions: Joi.boolean().optional(),
     clinician_forms: Joi.boolean().optional(),
     clinician_money: Joi.boolean().optional(),
+    clinician_subscription: Joi.boolean().optional(),
     clinician_integrations: Joi.boolean().optional(),
-    clinician_ai: Joi.boolean().optional(),
-  }),
+  }).min(1),
 };
 
 const deleteClinic = {

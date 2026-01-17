@@ -4,6 +4,7 @@ import httpStatus from "http-status";
 import bcrypt from "bcrypt";
 import email from "../../configs/email";
 import env from "../../configs/env";
+import { ClinicRole } from "../../../generated/prisma/client";
 
 const generateRandomPassword = (): string => {
   const length = 12;
@@ -232,18 +233,11 @@ const getClinicMembers = async (
   };
 };
 
-const removeClinicMember = async (clinicId: string, memberId: string) => {
-  const clinic = await prisma.clinic.findUnique({
-    where: { id: clinicId },
-  });
-
-  if (!clinic) {
-    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
-  }
-
+const removeClinicMember = async (memberId: string) => {
   const member = await prisma.clinicMember.findUnique({
     where: { id: memberId },
     include: {
+      clinic: true,
       user: true,
     },
   });
@@ -253,18 +247,10 @@ const removeClinicMember = async (clinicId: string, memberId: string) => {
   }
 
   // Prevent removal if member is the clinic owner
-  if (member.userId === clinic.ownerId) {
+  if (member.userId === member.clinic.ownerId) {
     throw new ApiError(
       httpStatus.BAD_REQUEST,
       "Cannot remove clinic owner from members"
-    );
-  }
-
-  // Ensure member belongs to the specified clinic
-  if (member.clinicId !== clinicId) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "Member does not belong to this clinic"
     );
   }
 
@@ -275,8 +261,187 @@ const removeClinicMember = async (clinicId: string, memberId: string) => {
   return { message: "Clinic member removed successfully" };
 };
 
+const updateClinicMember = async (
+  actorId: string,
+  clinicId: string,
+  memberId: string,
+  updateData: any
+) => {
+  // Verify clinic exists
+  const clinic = await prisma.clinic.findFirst({
+    where: { id: clinicId },
+  });
+
+  if (!clinic) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
+  }
+
+  // Verify actor permissions
+  const actorMember = await prisma.clinicMember.findFirst({
+    where: {
+      clinicId: clinicId,
+      userId: actorId,
+    },
+  });
+
+  if (!actorMember) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "You are not a member of this clinic"
+    );
+  }
+
+  // Find the member to update
+  const member = await prisma.clinicMember.findUnique({
+    where: { id: memberId },
+    include: {
+      clinic: true,
+    },
+  });
+
+  if (!member) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic member not found");
+  }
+
+  // Verify member belongs to the same clinic
+  if (member.clinicId !== clinicId) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Member does not belong to your clinic"
+    );
+  }
+
+  const isUpdatingSelf = actorMember.id === memberId;
+  const isAdmin = actorMember.role === "admin" || actorMember.role === "superAdmin";
+
+  // Non-admins can only update themselves
+  if (!isAdmin && !isUpdatingSelf) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "You can only update your own profile"
+    );
+  }
+
+  // Update the member
+  const updatedMember = await prisma.clinicMember.update({
+    where: { id: memberId },
+    data: updateData,
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  });
+
+  return updatedMember;
+};
+
+const updateClinicMemberRole = async (
+  actorId: string,
+  clinicId: string,
+  memberId: string,
+  role: ClinicRole
+) => {
+  // Verify clinic exists
+  const clinic = await prisma.clinic.findFirst({
+    where: { id: clinicId },
+  });
+
+  if (!clinic) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
+  }
+
+  // Verify actor permissions
+  const actorMember = await prisma.clinicMember.findFirst({
+    where: {
+      clinicId: clinicId,
+      userId: actorId,
+    },
+  });
+
+  if (!actorMember) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "You are not a member of this clinic"
+    );
+  }
+
+  // Only admins can change roles
+  const isAdmin = actorMember.role === "admin" || actorMember.role === "superAdmin";
+  if (!isAdmin) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Only admins can change member roles"
+    );
+  }
+
+  // Find the member to update
+  const member = await prisma.clinicMember.findUnique({
+    where: { id: memberId },
+    include: {
+      clinic: true,
+    },
+  });
+
+  if (!member) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic member not found");
+  }
+
+  // Verify member belongs to the same clinic
+  if (member.clinicId !== clinicId) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Member does not belong to your clinic"
+    );
+  }
+
+  // Only superAdmin can change role to/from admin
+  if (
+    (role === "admin" || member.role === "admin") &&
+    actorMember.role !== "superAdmin"
+  ) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "Only Super Admins can modify Admin roles"
+    );
+  }
+
+  // Prevent modifying clinic owner role
+  if (member.userId === clinic.ownerId) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Cannot modify clinic owner role"
+    );
+  }
+
+  // Update the member role
+  const updatedMember = await prisma.clinicMember.update({
+    where: { id: memberId },
+    data: { role },
+    include: {
+      user: {
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+    },
+  });
+
+  return updatedMember;
+};
+
 export default {
   addClinicMember,
   getClinicMembers,
   removeClinicMember,
+  updateClinicMember,
+  updateClinicMemberRole,
 };

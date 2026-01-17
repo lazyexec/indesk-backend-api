@@ -2,14 +2,14 @@ import express, { Router } from "express";
 import integrationController from "./integration.controller";
 import validate from "../../middlewares/validate";
 import integrationValidation from "./integration.validation";
-import { authWithIntegrations } from "../../middlewares/authWithSubscription";
+import auth from "../../middlewares/auth";
 
 const router: Router = express.Router();
 
 // Get all integrations
 router.get(
   "/",
-  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  auth("commonAdmin", "clinician_integrations"),
   integrationController.getIntegrations
 );
 
@@ -23,7 +23,7 @@ router.get(
 // Get OAuth URL for integration
 router.get(
   "/oauth/:type",
-  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  auth("commonAdmin", "clinician_integrations"),
   validate(integrationValidation.getOAuthUrl),
   integrationController.getOAuthUrl
 );
@@ -38,7 +38,7 @@ router.get(
 // Update integration configuration
 router.put(
   "/:type/config",
-  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  auth("commonAdmin", "clinician_integrations"),
   validate(integrationValidation.updateIntegrationConfig),
   integrationController.updateIntegrationConfig
 );
@@ -46,7 +46,7 @@ router.put(
 // Disconnect integration
 router.delete(
   "/:type",
-  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  auth("commonAdmin", "clinician_integrations"),
   validate(integrationValidation.disconnectIntegration),
   integrationController.disconnectIntegration
 );
@@ -54,7 +54,7 @@ router.delete(
 // Check integration health
 router.get(
   "/:type/health",
-  authWithIntegrations("commonAdmin", "clinician_integrations"),
+  auth("commonAdmin", "clinician_integrations"),
   validate(integrationValidation.checkIntegrationHealth),
   integrationController.checkIntegrationHealth
 );

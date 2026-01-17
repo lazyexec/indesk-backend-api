@@ -8,7 +8,8 @@ const router: Router = express.Router();
 
 /**
  * Plans Routes
- * Handles the complete clinic purchase and plan management flow
+ * Handles clinic purchase and plan management
+ * Payment is handled via Stripe Checkout and webhook
  */
 
 // Get available plans (public - no auth required)
@@ -25,19 +26,12 @@ router.get(
 );
 
 // Initiate clinic purchase (requires auth)
+// Returns Stripe Checkout URL for frontend to redirect
 router.post(
   "/initiate",
   auth("common"),
   validate(plansValidation.initiatePurchase),
   plansController.initiatePurchase
-);
-
-// Complete paid clinic purchase (requires auth)
-router.post(
-  "/complete",
-  auth("common"),
-  validate(plansValidation.completePurchase),
-  plansController.completePurchase
 );
 
 // Complete free clinic setup (requires auth)

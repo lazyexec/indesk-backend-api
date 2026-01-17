@@ -48,17 +48,14 @@ const verifyCallback =
     // Then check permissions
     if (requiredRights.length > 0) {
       const userRights = await getUserPermissions(user);
-
-      const hasRequiredRights = requiredRights.every((right) =>
+      const hasRequiredRights = requiredRights.some((right) =>
         userRights.includes(right)
       );
 
       if (!hasRequiredRights) {
-        console.log('Going to Throw an Error...!')
         return reject(new ApiError(httpStatus.FORBIDDEN, "Forbidden!"));
       }
     }
-
     resolve();
   };
 
@@ -111,6 +108,7 @@ const auth =
 const getClinicMemberPermissions = async (
   userId: string
 ): Promise<string[]> => {
+  // First check if user is a clinic member
   const clinician = await prisma.clinicMember.findFirst({
     where: { userId },
     select: {
@@ -123,15 +121,43 @@ const getClinicMemberPermissions = async (
     },
   });
 
-  if (!clinician) {
-    return [];
+  if (clinician) {
+    const ALL_PERMISSION_KEYS = Object.keys(all_permissions);
+    if (clinician.role === "superAdmin") {
+      return [
+        "common",
+        "commonAdmin",
+        "admin",
+        "superAdmin",
+        ...ALL_PERMISSION_KEYS,
+      ];
+    }
+
+    if (clinician.role === "admin") {
+      return ["common", "commonAdmin", "admin", ...ALL_PERMISSION_KEYS];
+    }
+
+    const permissions = (clinician.clinic.permissions || {}) as Record<
+      string,
+      boolean
+    >;
+
+    if (clinician.role === "clinician") {
+      return Object.keys(permissions).filter((key) => permissions[key] === true);
+    }
   }
 
-  const ALL_PERMISSION_KEYS = Object.keys(all_permissions).filter(
-    (key) => all_permissions[key as keyof typeof all_permissions] === true
-  );
+  // Fallback: Check if user is a clinic owner (for cases where clinicMember record doesn't exist yet)
+  const ownedClinic = await prisma.clinic.findFirst({
+    where: { ownerId: userId },
+    select: {
+      id: true,
+    },
+  });
 
-  if (clinician.role === "superAdmin") {
+  // If user owns a clinic but has no clinicMember record, give them all permissions
+  if (ownedClinic) {
+    const ALL_PERMISSION_KEYS = Object.keys(all_permissions);
     return [
       "common",
       "commonAdmin",
@@ -141,20 +167,8 @@ const getClinicMemberPermissions = async (
     ];
   }
 
-  if (clinician.role === "admin") {
-    return ["common", "commonAdmin", "admin", ...ALL_PERMISSION_KEYS];
-  }
-
-  const permissions = (clinician.clinic.permissions || {}) as Record<
-    string,
-    boolean
-  >;
-
-  if (clinician.role === "clinician") {
-    return Object.keys(permissions).filter((key) => permissions[key] === true);
-  }
-
-  return [];
+  // No clinic association at all
+  return ['common'];
 };
 
 export default auth;

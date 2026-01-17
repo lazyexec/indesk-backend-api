@@ -1,23 +1,109 @@
-import Stripe from "stripe";
+import stripeConfig from "../../configs/stripe";
 import prisma from "../../configs/prisma";
 import logger from "../../utils/logger";
 import appointmentService from "../appointment/appointment.service";
 import invoiceService from "../invoice/invoice.service";
 import subscriptionService from "../subscription/subscription.service";
-import env from "../../configs/env";
+import transactionService from "../transaction/transaction.service";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 import { SubscriptionStatus } from "../../../generated/prisma/client";
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY);
-
 const processWebHookStripe = async (event: any) => {
   switch (event.type) {
-    // Existing appointment payment webhooks
+    // Checkout session completed - handle clinic purchase
     case "checkout.session.completed": {
       const session = event.data.object;
-      const appointmentId = session.metadata?.appointmentId;
+      
+      // Check if this is a clinic purchase
+      if (session.metadata?.purchaseType === "clinic_subscription") {
+        const { userId, clinicId, planId } = session.metadata;
+        
+        try {
+          // Get plan details for transaction
+          const plan = await prisma.plan.findUnique({
+            where: { id: planId },
+          });
 
+          // Create transaction record
+          await transactionService.createTransaction({
+            clinicId,
+            userId,
+            transactionId: session.id,
+            amount: session.amount_total ? session.amount_total / 100 : 0, // Convert from cents
+            type: "clinic_purchase",
+            method: "stripe",
+            status: "completed",
+            description: `Clinic plan purchase: ${plan?.name || "Unknown Plan"}`,
+            meta: {
+              planId,
+              planName: plan?.name,
+              planType: plan?.type,
+              stripeSessionId: session.id,
+              stripeSubscriptionId: session.subscription,
+              stripeCustomerId: session.customer,
+              paymentStatus: session.payment_status,
+            },
+          });
+
+          // Activate the clinic
+          await prisma.clinic.update({
+            where: { id: clinicId },
+            data: {
+              isActive: true,
+              activatedAt: new Date(),
+            },
+          });
+
+          // Create subscription record
+          await subscriptionService.createSubscription({
+            clinicId,
+            planId,
+            status: "active",
+            stripeSubscriptionId: session.subscription as string,
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+          });
+
+          // Add user as clinic owner in clinic members
+          await prisma.clinicMember.create({
+            data: {
+              userId,
+              clinicId,
+              role: "superAdmin",
+              availability: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
+              specialization: [],
+            },
+          });
+
+          logger.info(`✅ Clinic ${clinicId} activated successfully via checkout`);
+        } catch (error: any) {
+          logger.error(`Failed to activate clinic ${clinicId}:`, error);
+          
+          // Create failed transaction record
+          try {
+            await transactionService.createTransaction({
+              clinicId,
+              userId,
+              transactionId: session.id,
+              amount: session.amount_total ? session.amount_total / 100 : 0,
+              type: "clinic_purchase",
+              method: "stripe",
+              status: "failed",
+              description: `Failed clinic plan purchase`,
+              meta: {
+                error: error.message,
+                stripeSessionId: session.id,
+              },
+            });
+          } catch (txError) {
+            logger.error("Failed to create failed transaction record:", txError);
+          }
+        }
+      }
+      
+      // Handle appointment payments
+      const appointmentId = session.metadata?.appointmentId;
       if (appointmentId) {
         try {
           await paymentStateApply(appointmentId, "scheduled");
@@ -179,6 +265,32 @@ const handleInvoicePaymentSucceeded = async (invoice: any) => {
     if (invoice.subscription && typeof invoice.subscription === 'string') {
       const subscription = await getSubscription(invoice.subscription);
       await syncSubscriptionFromStripe(subscription.id);
+      
+      // Create transaction record for subscription renewal
+      const clinicId = subscription.metadata?.clinicId;
+      if (clinicId) {
+        const localSubscription = await subscriptionService.getSubscriptionByClinicId(clinicId);
+        
+        await transactionService.createTransaction({
+          clinicId,
+          userId: subscription.metadata?.userId,
+          transactionId: invoice.id,
+          amount: invoice.amount_paid ? invoice.amount_paid / 100 : 0,
+          type: "subscription_renewal",
+          method: "stripe",
+          status: "completed",
+          description: `Subscription renewal payment`,
+          meta: {
+            planId: localSubscription.planId,
+            stripeInvoiceId: invoice.id,
+            stripeSubscriptionId: subscription.id,
+            billingReason: invoice.billing_reason,
+            periodStart: new Date(invoice.period_start * 1000),
+            periodEnd: new Date(invoice.period_end * 1000),
+          },
+        });
+      }
+      
       logger.info(`✅ Payment succeeded for subscription ${subscription.id}`);
     }
   } catch (error: any) {
@@ -193,6 +305,27 @@ const handleInvoicePaymentFailed = async (invoice: any) => {
       const clinicId = subscription.metadata?.clinicId;
       
       if (clinicId) {
+        // Create failed transaction record
+        const localSubscription = await subscriptionService.getSubscriptionByClinicId(clinicId);
+        
+        await transactionService.createTransaction({
+          clinicId,
+          userId: subscription.metadata?.userId,
+          transactionId: invoice.id,
+          amount: invoice.amount_due ? invoice.amount_due / 100 : 0,
+          type: "subscription_renewal",
+          method: "stripe",
+          status: "failed",
+          description: `Failed subscription renewal payment`,
+          meta: {
+            planId: localSubscription.planId,
+            stripeInvoiceId: invoice.id,
+            stripeSubscriptionId: subscription.id,
+            billingReason: invoice.billing_reason,
+            failureMessage: invoice.last_payment_error?.message,
+          },
+        });
+        
         // Update subscription status to past_due
         await subscriptionService.updateSubscriptionByClinicId(clinicId, {
           status: SubscriptionStatus.past_due,
@@ -213,7 +346,7 @@ const createCustomer = async (data: {
   clinicId: string;
 }) => {
   try {
-    const customer = await stripe.customers.create({
+    const customer = await stripeConfig.createCustomer({
       email: data.email,
       name: data.name,
       metadata: {
@@ -235,16 +368,13 @@ const createSubscription = async (data: {
   trialPeriodDays?: number;
 }) => {
   try {
-    const subscription = await stripe.subscriptions.create({
-      customer: data.customerId,
-      items: [{ price: data.priceId }],
-      trial_period_days: data.trialPeriodDays,
+    const subscription = await stripeConfig.createSubscription({
+      customerId: data.customerId,
+      priceId: data.priceId,
+      trialPeriodDays: data.trialPeriodDays,
       metadata: {
         clinicId: data.clinicId,
       },
-      payment_behavior: 'default_incomplete',
-      payment_settings: { save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.payment_intent'],
     });
 
     return subscription;
@@ -256,7 +386,7 @@ const createSubscription = async (data: {
 
 const cancelSubscription = async (subscriptionId: string) => {
   try {
-    const subscription = await stripe.subscriptions.cancel(subscriptionId);
+    const subscription = await stripeConfig.cancelSubscription(subscriptionId);
     return subscription;
   } catch (error) {
     logger.error('Stripe subscription cancellation failed:', error);
@@ -266,7 +396,7 @@ const cancelSubscription = async (subscriptionId: string) => {
 
 const getSubscription = async (subscriptionId: string) => {
   try {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await stripeConfig.getSubscription(subscriptionId);
     return subscription;
   } catch (error) {
     logger.error('Stripe subscription retrieval failed:', error);
@@ -326,14 +456,11 @@ const createPaymentIntent = async (data: {
   customerId?: string;
 }) => {
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await stripeConfig.createPaymentIntent({
       amount: data.amount,
       currency: data.currency,
-      metadata: data.metadata || {},
-      customer: data.customerId,
-      automatic_payment_methods: {
-        enabled: true,
-      },
+      metadata: data.metadata,
+      customerId: data.customerId,
     });
 
     return paymentIntent;
@@ -345,7 +472,7 @@ const createPaymentIntent = async (data: {
 
 const retrievePaymentIntent = async (paymentIntentId: string) => {
   try {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const paymentIntent = await stripeConfig.getPaymentIntent(paymentIntentId);
     return paymentIntent;
   } catch (error) {
     logger.error('Stripe payment intent retrieval failed:', error);
@@ -355,9 +482,7 @@ const retrievePaymentIntent = async (paymentIntentId: string) => {
 
 const confirmPaymentIntent = async (paymentIntentId: string, paymentMethodId?: string) => {
   try {
-    const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
-      payment_method: paymentMethodId,
-    });
+    const paymentIntent = await stripeConfig.confirmPaymentIntent(paymentIntentId, paymentMethodId);
     return paymentIntent;
   } catch (error) {
     logger.error('Stripe payment intent confirmation failed:', error);

@@ -3,14 +3,13 @@ import analyticsController from "./analytics.controller";
 import validate from "../../middlewares/validate";
 import analyticsValidation from "./analytics.validation";
 import auth from "../../middlewares/auth";
-import { authWithAdvancedReporting, authWithActiveSubscription } from "../../middlewares/authWithSubscription";
 
 const router = express.Router();
 
 // Financial overview - providers see all clinics, clinic users see their clinic only
 router.get(
   "/financial-overview",
-  auth("provider", "clinician_dashboard", "commonAdmin"),
+  auth("provider", "clinician_money", "commonAdmin"),
   validate(analyticsValidation.getAnalytics),
   analyticsController.getFinancialOverview
 );
@@ -18,7 +17,7 @@ router.get(
 // Income sources breakdown - providers see all clinics, clinic users see their clinic only
 router.get(
   "/income-sources",
-  auth("provider", "clinician_dashboard", "commonAdmin"),
+  auth("provider", "clinician_money", "commonAdmin"),
   validate(analyticsValidation.getAnalytics),
   analyticsController.getIncomeSourcesBreakdown
 );
@@ -26,7 +25,7 @@ router.get(
 // Session type distribution - providers see all clinics, clinic users see their clinic only
 router.get(
   "/session-distribution",
-  auth("provider", "clinician_dashboard", "commonAdmin"),
+  auth("provider", "clinician_money", "commonAdmin"),
   validate(analyticsValidation.getAnalytics),
   analyticsController.getSessionTypeDistribution
 );
@@ -34,7 +33,7 @@ router.get(
 // Client growth analysis - providers see all clinics, clinic users see their clinic only
 router.get(
   "/client-growth",
-  auth("provider", "clinician_dashboard", "commonAdmin"),
+  auth("provider", "clinician_money", "commonAdmin"),
   validate(analyticsValidation.getAnalytics),
   analyticsController.getClientGrowthAnalysis
 );
@@ -42,23 +41,23 @@ router.get(
 // Expenses analysis - providers see subscription revenue, clinic users see their expenses
 router.get(
   "/expenses",
-  auth("provider", "clinician_dashboard", "commonAdmin"),
+  auth("provider", "clinician_money", "commonAdmin"),
   validate(analyticsValidation.getAnalytics),
   analyticsController.getExpensesAnalysis
 );
 
-// Comprehensive analytics dashboard - requires advanced reporting for clinic users, basic access for providers
+// Comprehensive analytics dashboard
 router.get(
   "/dashboard",
-  auth("provider", "clinician_dashboard", "commonAdmin"),
+  auth("provider", "clinician_money", "commonAdmin"),
   validate(analyticsValidation.getAnalytics),
   analyticsController.getComprehensiveAnalytics
 );
 
-// Export report - requires advanced reporting for clinic users, basic access for providers
+// Export report
 router.get(
   "/export",
-  auth("provider", "clinician_dashboard", "commonAdmin"),
+  auth("provider", "clinician_money", "commonAdmin"),
   validate(analyticsValidation.exportReport),
   analyticsController.exportReport
 );

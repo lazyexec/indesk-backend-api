@@ -8,41 +8,12 @@ import env from "../../configs/env";
 import fs from "../../utils/fs";
 import pick from "../../utils/pick";
 
-const createClinic = catchAsync(async (req: Request, res: Response) => {
-  const files = req.files as any;
-  const body = req.body as any;
-  let logo: string | undefined = undefined;
-  if (files?.logo?.[0]) {
-    const file = files.logo[0];
-    logo = env.BACKEND_URL + "/public" + fs.sanitizePath(file.path);
-  }
+interface AuthenticatedRequest extends Request {
+  user?: any;
+}
 
-  const clinic = await clinicService.createClinic({ ...body, logo });
-
-  res.status(httpStatus.CREATED).json(
-    response({
-      status: httpStatus.CREATED,
-      message: "Clinic created successfully",
-      data: clinic,
-    })
-  );
-});
-
-const getClinic = catchAsync(async (req: Request, res: Response) => {
-  const { clinicId } = req.params;
-
-  const clinic = await clinicService.getClinicById(clinicId);
-
-  res.status(httpStatus.OK).json(
-    response({
-      status: httpStatus.OK,
-      message: "Clinic retrieved successfully",
-      data: clinic,
-    })
-  );
-});
-
-const getClinics = catchAsync(async (req: Request, res: Response) => {
+// Provider routes (admin access to all clinics)
+const getAllClinicsForProvider = catchAsync(async (req: Request, res: Response) => {
   const options = pick(req.query, ["limit", "page", "sort"]);
   const clinics = await clinicService.getClinics(options);
 
@@ -55,16 +26,56 @@ const getClinics = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
-const updateClinic = catchAsync(async (req: Request, res: Response) => {
+const getClinicByIdForProvider = catchAsync(async (req: Request, res: Response) => {
   const { clinicId } = req.params;
+  const clinic = await clinicService.getClinicById(clinicId);
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinic retrieved successfully",
+      data: clinic,
+    })
+  );
+});
+
+// Clinic member routes (uses authenticated user's clinic)
+const getOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+  const clinicId = req.user?.clinicId;
+  
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
+  }
+
+  const clinic = await clinicService.getClinicById(clinicId);
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinic retrieved successfully",
+      data: clinic,
+    })
+  );
+});
+
+const updateOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+  const clinicId = req.user?.clinicId;
+  
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
+  }
+
   const files = req.files as any;
-  const { name, email, phoneNumber, address } = req.body;
+  const { name, email, phoneNumber, address, countryCode, description, color } = req.body;
 
   const updateData: any = {};
   if (name !== undefined) updateData.name = name;
   if (email !== undefined) updateData.email = email;
   if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
+  if (countryCode !== undefined) updateData.countryCode = countryCode;
   if (address !== undefined) updateData.address = address;
+  if (description !== undefined) updateData.description = description;
+  if (color !== undefined) updateData.color = color;
 
   const clinic = await clinicService.updateClinic(clinicId, updateData, files);
 
@@ -77,8 +88,13 @@ const updateClinic = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
-const updatePermissions = catchAsync(async (req: Request, res: Response) => {
-  const { clinicId } = req.params;
+const updateOwnClinicPermissions = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+  const clinicId = req.user?.clinicId;
+  
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
+  }
+
   const permissions = req.body;
 
   const clinic = await clinicService.updateClinic(
@@ -96,8 +112,12 @@ const updatePermissions = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
-const deleteClinic = catchAsync(async (req: Request, res: Response) => {
-  const { clinicId } = req.params;
+const deleteOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+  const clinicId = req.user?.clinicId;
+  
+  if (!clinicId) {
+    throw new ApiError(httpStatus.NOT_FOUND, "You are not associated with any clinic");
+  }
 
   const clinic = await clinicService.deleteClinic(clinicId);
 
@@ -105,16 +125,19 @@ const deleteClinic = catchAsync(async (req: Request, res: Response) => {
     response({
       status: httpStatus.OK,
       message: "Clinic deleted successfully",
-      data: clinic,
+      data: {},
     })
   );
 });
 
 export default {
-  createClinic,
-  getClinic,
-  getClinics,
-  updateClinic,
-  updatePermissions,
-  deleteClinic,
+  // Provider routes
+  getAllClinicsForProvider,
+  getClinicByIdForProvider,
+  
+  // Clinic member routes
+  getOwnClinic,
+  updateOwnClinic,
+  updateOwnClinicPermissions,
+  deleteOwnClinic,
 };

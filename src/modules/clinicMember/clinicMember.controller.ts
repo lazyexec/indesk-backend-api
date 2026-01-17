@@ -56,9 +56,9 @@ const getMembers = catchAsync(async (req: Request, res: Response) => {
 });
 
 const removeMember = catchAsync(async (req: Request, res: Response) => {
-  const { clinicId, memberId } = req.params;
+  const { memberId } = req.params;
 
-  await clinicMemberService.removeClinicMember(clinicId, memberId);
+  await clinicMemberService.removeClinicMember(memberId);
 
   res.status(httpStatus.OK).json(
     response({
@@ -68,8 +68,54 @@ const removeMember = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const updateMember = catchAsync(async (req: Request, res: Response) => {
+  const { memberId } = req.params;
+  const updateData = req.body;
+  const actorId = req.user!.id;
+  const clinicId = await clinicService.getClinicIdByUserId(actorId!);
+
+  const updatedMember = await clinicMemberService.updateClinicMember(
+    actorId!,
+    clinicId!,
+    memberId,
+    updateData
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinic member updated successfully",
+      data: updatedMember,
+    })
+  );
+});
+
+const updateMemberRole = catchAsync(async (req: Request, res: Response) => {
+  const { memberId } = req.params;
+  const { role } = req.body;
+  const actorId = req.user!.id;
+  const clinicId = await clinicService.getClinicIdByUserId(actorId!);
+
+  const updatedMember = await clinicMemberService.updateClinicMemberRole(
+    actorId!,
+    clinicId!,
+    memberId,
+    role
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinic member role updated successfully",
+      data: updatedMember,
+    })
+  );
+});
+
 export default {
   addMember,
   getMembers,
   removeMember,
+  updateMember,
+  updateMemberRole,
 };

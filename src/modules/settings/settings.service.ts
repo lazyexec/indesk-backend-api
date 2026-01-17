@@ -1,5 +1,5 @@
 import sanitizeHtml from "sanitize-html";
-import { TermsConditions, AboutUs, Privacy, FAQ } from "./settings.model";
+import prisma from "../../configs/prisma";
 import { IFAQ, ISettingsContent } from "./settings.interface";
 
 const sanitizeOptions = {
@@ -30,46 +30,74 @@ const sanitizeOptions = {
 };
 
 const modifyTermsAndCondition = async (data: ISettingsContent) => {
-  data.content = sanitizeHtml(data.content, sanitizeOptions);
-  await TermsConditions.deleteMany();
-  return await TermsConditions.create(data);
+  const sanitizedContent = sanitizeHtml(data.content, sanitizeOptions);
+  
+  return await prisma.setting.upsert({
+    where: { type: "terms_and_conditions" },
+    update: { content: sanitizedContent },
+    create: { type: "terms_and_conditions", content: sanitizedContent },
+  });
 };
 
 const modifyAboutUs = async (data: ISettingsContent) => {
-  data.content = sanitizeHtml(data.content, sanitizeOptions);
-  await AboutUs.deleteMany();
-  return await AboutUs.create(data);
+  const sanitizedContent = sanitizeHtml(data.content, sanitizeOptions);
+  
+  return await prisma.setting.upsert({
+    where: { type: "about_us" },
+    update: { content: sanitizedContent },
+    create: { type: "about_us", content: sanitizedContent },
+  });
 };
 
 const modifyPrivacyPolicy = async (data: ISettingsContent) => {
-  data.content = sanitizeHtml(data.content, sanitizeOptions);
-  await Privacy.deleteMany();
-  return await Privacy.create(data);
+  const sanitizedContent = sanitizeHtml(data.content, sanitizeOptions);
+  
+  return await prisma.setting.upsert({
+    where: { type: "privacy_policy" },
+    update: { content: sanitizedContent },
+    create: { type: "privacy_policy", content: sanitizedContent },
+  });
 };
 
 const modifyFAQ = async (data: { faqs: IFAQ[] }) => {
-  data.faqs = data.faqs.map((faq) => ({
+  const sanitizedFaqs = data.faqs.map((faq, index) => ({
     question: sanitizeHtml(faq.question, sanitizeOptions),
     answer: sanitizeHtml(faq.answer, sanitizeOptions),
+    order: index,
   }));
-  await FAQ.deleteMany();
-  return await FAQ.create(data);
+
+  // Delete all existing FAQs and create new ones
+  await prisma.fAQ.deleteMany();
+  
+  return await prisma.fAQ.createMany({
+    data: sanitizedFaqs,
+  });
 };
 
 const getTermsAndCondition = async () => {
-  return await TermsConditions.findOne();
+  return await prisma.setting.findUnique({
+    where: { type: "terms_and_conditions" },
+  });
 };
 
 const getAboutUs = async () => {
-  return await AboutUs.findOne();
+  return await prisma.setting.findUnique({
+    where: { type: "about_us" },
+  });
 };
 
 const getPrivacyPolicy = async () => {
-  return await Privacy.findOne();
+  return await prisma.setting.findUnique({
+    where: { type: "privacy_policy" },
+  });
 };
 
 const getFAQ = async () => {
-  return await FAQ.findOne();
+  const faqs = await prisma.fAQ.findMany({
+    orderBy: { order: "asc" },
+  });
+  
+  return { faqs };
 };
 
 export const settingsService = {

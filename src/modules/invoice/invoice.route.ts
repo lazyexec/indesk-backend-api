@@ -45,4 +45,6 @@ router
     invoiceController.deleteInvoice
   );
 
+// TODO: Routes for Client to Pay or Check Invoice
+
 export default router;

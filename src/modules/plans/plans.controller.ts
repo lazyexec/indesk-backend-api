@@ -65,23 +65,6 @@ const initiatePurchase = catchAsync(async (req: Request, res: Response) => {
 });
 
 /**
- * Complete clinic purchase after successful payment
- */
-const completePurchase = catchAsync(async (req: Request, res: Response) => {
-  const { paymentIntentId } = req.body;
-  
-  const result = await plansService.completePurchase(paymentIntentId);
-  
-  res.status(httpStatus.OK).json(
-    response({
-      status: httpStatus.OK,
-      message: result.message,
-      data: result,
-    })
-  );
-});
-
-/**
  * Complete free clinic setup (no payment required)
  */
 const completeFreePurchase = catchAsync(async (req: Request, res: Response) => {
@@ -121,7 +104,6 @@ export default {
   getAvailablePlans,
   getPurchaseStatus,
   initiatePurchase,
-  completePurchase,
   completeFreePurchase,
   cancelPurchase,
 };

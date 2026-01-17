@@ -132,6 +132,7 @@ model User {
   clients                    Client[]
   reportedIssues             UserIssue[]
   adminResponses             UserIssue[]          @relation("AdminResponse")
+  transactions               Transaction[]
 }
 
 model Token {
@@ -177,6 +178,7 @@ model Clinic {
   assessmentTemplates AssessmentTemplate[]
   subscription        Subscription?
   issues              UserIssue[]
+  transactions        Transaction[]
 
   @@index([ownerId])
 }
@@ -435,24 +437,32 @@ model AssessmentResponse {
 
 model Transaction {
   id            String   @id @default(uuid())
-  sessionId     String
-  clientId      String
+  sessionId     String?  // Optional for clinic purchases
+  clientId      String?  // Optional for clinic purchases
+  clinicId      String?  // For clinic purchase transactions
+  userId        String?  // User who made the transaction
   transactionId String?  @unique
   amount        Float?
-  type          String?
-  method        String?
-  status        String?
+  type          String?  // "appointment", "clinic_purchase", "subscription", etc.
+  method        String?  // "stripe", "cash", etc.
+  status        String?  // "pending", "completed", "failed", "refunded"
   description   String?
-  meta          Json?
+  meta          Json?    // Store additional data like planId, stripeSessionId, etc.
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  client      Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  session     Session       @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  client      Client?       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  session     Session?      @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  clinic      Clinic?       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user        User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
   appointment Appointment[]
 
   @@index([sessionId])
   @@index([clientId])
+  @@index([clinicId])
+  @@index([userId])
+  @@index([type])
+  @@index([status])
 }
 
 model Invoice {
@@ -576,4 +586,32 @@ model UserIssue {
   @@index([status])
   @@index([type])
   @@index([priority])
+}
+
+enum SettingType {
+  terms_and_conditions
+  about_us
+  privacy_policy
+  faq
+}
+
+model Setting {
+  id        String      @id @default(uuid())
+  type      SettingType @unique
+  content   String      @db.Text
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([type])
+}
+
+model FAQ {
+  id        String   @id @default(uuid())
+  question  String   @db.Text
+  answer    String   @db.Text
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
 }

@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import dashboardController from "./dashboard.controller";
 import validate from "../../middlewares/validate";
 import dashboardValidation from "./dashboard.validation";
-import { authWithActiveSubscription } from "../../middlewares/authWithSubscription";
+import auth from "../../middlewares/auth";
 
 const router: Router = express.Router();
 
@@ -14,7 +14,7 @@ const router: Router = express.Router();
 // Get comprehensive dashboard overview
 router.get(
   "/overview",
-  authWithActiveSubscription("dashboard_access"),
+  auth("clinician_dashboard"),
   validate(dashboardValidation.getDashboardOverview),
   dashboardController.getDashboardOverview
 );
@@ -22,7 +22,7 @@ router.get(
 // Get dashboard calendar view
 router.get(
   "/calendar",
-  authWithActiveSubscription("dashboard_access"),
+  auth("clinician_dashboard"),
   validate(dashboardValidation.getDashboardCalendar),
   dashboardController.getDashboardCalendar
 );
@@ -30,7 +30,7 @@ router.get(
 // Get clinician personal dashboard
 router.get(
   "/clinician",
-  authWithActiveSubscription("dashboard_access"),
+  auth("clinician_dashboard"),
   validate(dashboardValidation.getClinicianDashboard),
   dashboardController.getClinicianDashboard
 );
@@ -38,7 +38,7 @@ router.get(
 // Get quick stats (for widgets)
 router.get(
   "/stats",
-  authWithActiveSubscription("dashboard_access"),
+  auth("clinician_dashboard"),
   validate(dashboardValidation.getQuickStats),
   dashboardController.getQuickStats
 );
@@ -46,7 +46,7 @@ router.get(
 // Get dashboard for specific clinic member (admin only)
 router.get(
   "/clinician/:clinicMemberId",
-  authWithActiveSubscription("dashboard_access"),
+  auth("clinician_dashboard"),
   validate(dashboardValidation.getClinicMemberDashboard),
   dashboardController.getClinicMemberDashboard
 );

@@ -32,8 +32,28 @@ const getMembers = {
 // DELETE /clinics/:clinicId/members/:memberId - Remove clinic member
 const removeMember = {
   params: Joi.object().keys({
-    clinicId: Joi.string().uuid().required(),
     memberId: Joi.string().uuid().required(),
+  }),
+};
+
+// PATCH /clinics/:clinicId/members/:memberId - Update clinic member
+const updateMember = {
+  params: Joi.object().keys({
+    memberId: Joi.string().uuid().required(),
+  }),
+  body: Joi.object().keys({
+    availability: Joi.any().optional(),
+    specialization: Joi.array().items(Joi.string()).optional(),
+  }),
+};
+
+// PATCH /clinics/:clinicId/members/:memberId/role - Update member role (admin only)
+const updateMemberRole = {
+  params: Joi.object().keys({
+    memberId: Joi.string().uuid().required(),
+  }),
+  body: Joi.object().keys({
+    role: Joi.string().valid("admin", "clinician").required(),
   }),
 };
 
@@ -41,4 +61,6 @@ export default {
   addMember,
   getMembers,
   removeMember,
+  updateMember,
+  updateMemberRole,
 };

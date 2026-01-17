@@ -42,7 +42,7 @@ app.use(
 // Webhook Route for raw body
 app.use("/api/v1/webhook", webhookRouter);
 // parse json request body
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "50mb" }));
 // Set security HTTP headers
 app.use(helmet());
 // Parse urlencoded request body

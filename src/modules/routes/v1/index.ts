@@ -48,7 +48,7 @@ const routes: routeObjects[] = [
     route: plansRouter,
   },
   {
-    path: "/clinicMember",
+    path: "/clinic-member",
     route: clinicMemberRouter,
   },
   {

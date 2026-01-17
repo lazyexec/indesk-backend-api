@@ -12,17 +12,14 @@ const initiatePurchase = {
       "string.email": "Please provide a valid clinic email address",
       "any.required": "Clinic email is required",
     }),
-    clinicPhone: Joi.number().optional().integer().positive().messages({
-      "number.positive": "Phone number must be positive",
-      "number.integer": "Phone number must be an integer",
-    }),
-    countryCode: Joi.string().when("clinicPhone", {
-      is: Joi.number(),
+    clinicPhone: Joi.string().optional().allow(null, ""),
+    countryCode: Joi.when("clinicPhone", {
+      is: Joi.exist().not(null, ""),
       then: Joi.string().required().pattern(/^\+\d{1,4}$/).messages({
         "string.pattern.base": "Country code must be in format +1, +44, etc.",
         "any.required": "Country code is required when phone number is provided",
       }),
-      otherwise: Joi.string().optional(),
+      otherwise: Joi.optional().allow(null, ""),
     }),
     address: Joi.object().keys({
       street: Joi.string().required().trim().min(5).max(200).messages({
@@ -93,7 +90,6 @@ const cancelPurchase = {
 
 export default {
   initiatePurchase,
-  completePurchase,
   completeFreePurchase,
   cancelPurchase,
 };

@@ -15,7 +15,7 @@ router
     issueController.createIssue
   )
   .get(
-    auth(),
+    auth('provider'),
     validate(issueValidation.getIssues),
     issueController.getIssues
   );

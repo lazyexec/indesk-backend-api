@@ -2,7 +2,7 @@ import catchAsync from "../../utils/catchAsync";
 import type { Request, Response } from "express";
 import httpStatus from "http-status";
 import response from "../../utils/response";
-import stripe from "../../configs/stripe";
+import stripeConfig from "../../configs/stripe";
 import ApiError from "../../utils/ApiError";
 import stripeService from "./stripe.service";
 
@@ -17,7 +17,7 @@ const webhook = catchAsync(async (req: Request, res: Response) => {
 
   let event;
   try {
-    event = stripe.verifyWebhook(req, signature);
+    event = stripeConfig.verifyWebhook(req.body, signature);
   } catch (err: any) {
     throw new ApiError(httpStatus.BAD_REQUEST, `Webhook Error: ${err.message}`);
   }

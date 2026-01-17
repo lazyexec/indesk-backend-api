@@ -6,6 +6,7 @@ import stripeService from "../stripe/stripe.service";
 import subscriptionService from "../subscription/subscription.service";
 import planService from "../subscription/plan.service";
 import permissions from "../../configs/permissions";
+import stripeConfig from "../../configs/stripe";
 
 interface IPurchaseData {
   // Clinic details
@@ -42,12 +43,12 @@ interface IPurchaseResult {
 
 /**
  * Initiate clinic purchase process
- * Creates a pending clinic and returns payment intent for frontend
+ * Creates a pending clinic and returns Stripe Checkout Session URL
  */
 const initiatePurchase = async (
   userId: string,
   purchaseData: IPurchaseData
-): Promise<{ clientSecret: string; clinicId: string; planId: string }> => {
+): Promise<{ checkoutUrl: string; clinicId: string; planId: string }> => {
   const {
     clinicName,
     clinicEmail,
@@ -65,10 +66,18 @@ const initiatePurchase = async (
   });
 
   if (existingClinic) {
-    throw new ApiError(
-      httpStatus.CONFLICT,
-      "You already own a clinic. Each user can only own one clinic."
-    );
+    if (existingClinic.isActive){
+      throw new ApiError(
+        httpStatus.CONFLICT,
+        "You already own a clinic. Each user can only own one clinic."
+      );
+    }else{
+      await prisma.clinic.delete({where:
+        {
+          ownerId : userId
+        }
+      })
+    }
   }
 
   // Get the selected plan
@@ -89,16 +98,19 @@ const initiatePurchase = async (
     },
   });
 
-  let clientSecret: string;
+  let checkoutUrl: string;
   
   if (startTrial || plan.price === 0) {
-    // For free plans or trials, no payment needed
-    clientSecret = "no_payment_required";
+    // For free plans or trials, no payment needed - return a special URL
+    checkoutUrl = "no_payment_required";
   } else {
-    // Create Stripe payment intent
-    const paymentIntent = await stripeService.createPaymentIntent({
-      amount: Math.round(plan.price * 100), // Convert to cents
+    // Use centralized Stripe config to create checkout session
+    const session = await stripeConfig.createSubscriptionCheckout({
+      planName: `${plan.name} Plan`,
+      planDescription: plan.description || `${plan.name} subscription for ${clinicName}`,
+      amount: plan.price,
       currency: "usd",
+      interval: "month",
       metadata: {
         userId,
         clinicId: clinic.id,
@@ -106,13 +118,22 @@ const initiatePurchase = async (
         planType: plan.type,
         purchaseType: "clinic_subscription",
       },
+      subscriptionMetadata: {
+        userId,
+        clinicId: clinic.id,
+        planId: plan.id,
+        planType: plan.type,
+      },
+      successUrl: `${process.env.FRONTEND_URL}/clinic/setup/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${process.env.FRONTEND_URL}/clinic/setup/cancelled`,
+      customerEmail: clinicEmail,
     });
 
-    clientSecret = paymentIntent.client_secret || "";
+    checkoutUrl = session.url || "";
   }
 
   return {
-    clientSecret,
+    checkoutUrl,
     clinicId: clinic.id,
     planId: plan.id,
   };
@@ -121,12 +142,14 @@ const initiatePurchase = async (
 /**
  * Complete clinic purchase after successful payment
  * Activates clinic and creates subscription
+ * NOTE: This is now handled by webhook (checkout.session.completed)
+ * Keeping this function for reference/manual recovery if needed
  */
 const completePurchase = async (
   paymentIntentId: string
 ): Promise<IPurchaseResult> => {
   // Retrieve payment intent from Stripe to get metadata
-  const paymentIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
+  const paymentIntent = await stripeConfig.getPaymentIntent(paymentIntentId);
   
   if (paymentIntent.status !== "succeeded") {
     throw new ApiError(
@@ -135,7 +158,7 @@ const completePurchase = async (
     );
   }
 
-  const { userId, clinicId, planId, planType } = paymentIntent.metadata;
+  const { userId, clinicId, planId } = paymentIntent.metadata as any;
 
   // Get clinic and plan details
   const [clinic, plan] = await Promise.all([
@@ -374,7 +397,6 @@ const getPurchaseStatus = async (userId: string) => {
 
 export default {
   initiatePurchase,
-  completePurchase,
   completeFreePurchase,
   cancelPurchase,
   getAvailablePlans,

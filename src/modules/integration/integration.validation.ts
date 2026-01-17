@@ -25,7 +25,10 @@ const updateIntegrationConfig = {
       .required(),
   }),
   body: Joi.object().keys({
-    config: Joi.object().required(),
+    apiKey: Joi.string().optional(),
+    clientId: Joi.string().optional(),
+    clientSecret: Joi.string().optional()
+
   }),
 };
 
