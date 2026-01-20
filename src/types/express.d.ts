@@ -19,7 +19,8 @@ declare global {
       id?: string;
       role?: string;
       name?: string;
-      fcmToken?: string
+      fcmToken?: string;
+      clinicId?: string;
     }
 
     interface Request {

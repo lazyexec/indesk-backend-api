@@ -1,4 +1,5 @@
 interface responseInterface {
+  success?: boolean
   status: number;
   message: string;
   type?: string;
@@ -8,9 +9,10 @@ interface responseInterface {
 }
 
 export default (response: responseInterface) => {
-  const { status, message, data = {}, type, token, pagination } = response;
+  const { success = true, status, message, data = {}, type, token, pagination } = response;
 
   return {
+    success: success || status >= 200 && status <= 300,
     status,
     message,
     response: {

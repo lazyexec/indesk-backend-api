@@ -12,6 +12,12 @@ const upload = uploader("./public/uploads/all").fields([
 const router: Router = express.Router();
 
 // Provider routes (admin access to all clinics)
+router.post(
+  '/provider/create',
+  auth('provider'),
+  validate(clinicValidation.createClinic),
+  clinicController.createClinicForProvider
+);
 router.get(
   "/provider/all",
   auth("provider"),

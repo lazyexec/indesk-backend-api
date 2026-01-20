@@ -12,10 +12,14 @@ import crypto from "crypto";
 const createClinic = async (
   data: Partial<IClinic> & { ownerEmail?: string }
 ) => {
-  const { ownerEmail, name, email, phoneNumber, address, logo } = data;
+  const { ownerEmail, name } = data;
 
   if (!ownerEmail) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Owner email is required");
+  }
+
+  if (!name) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Clinic name is required");
   }
 
   const user = await prisma.user.findUnique({
@@ -29,25 +33,30 @@ const createClinic = async (
   // Generate public token
   const publicToken = crypto.randomBytes(32).toString("hex");
 
+  // Build clinic data with only provided fields
+  const clinicData: any = {
+    name,
+    ownerId: user.id,
+    publicToken,
+    members: {
+      create: {
+        userId: user.id,
+        role: "superAdmin",
+      },
+    },
+    permissions: permissions,
+  };
+
+  // Add optional fields only if they exist and are not undefined
+  if (data.email !== undefined) clinicData.email = data.email;
+  if (data.phoneNumber !== undefined) clinicData.phoneNumber = data.phoneNumber;
+  if (data.address !== undefined) clinicData.address = data.address;
+  if (data.logo !== undefined) clinicData.logo = data.logo;
+
   let clinic;
   try {
     clinic = await prisma.clinic.create({
-      data: {
-        name: name!,
-        ownerId: user.id,
-        email,
-        phoneNumber,
-        address,
-        publicToken,
-        members: {
-          create: {
-            userId: user.id,
-            role: "superAdmin",
-          },
-        },
-        permissions: permissions,
-        logo,
-      },
+      data: clinicData,
       include: {
         owner: {
           select: {

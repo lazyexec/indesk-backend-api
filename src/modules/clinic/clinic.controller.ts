@@ -4,13 +4,8 @@ import httpStatus from "http-status";
 import clinicService from "./clinic.service";
 import response from "../../utils/response";
 import ApiError from "../../utils/ApiError";
-import env from "../../configs/env";
-import fs from "../../utils/fs";
 import pick from "../../utils/pick";
 
-interface AuthenticatedRequest extends Request {
-  user?: any;
-}
 
 // Provider routes (admin access to all clinics)
 const getAllClinicsForProvider = catchAsync(async (req: Request, res: Response) => {
@@ -39,8 +34,20 @@ const getClinicByIdForProvider = catchAsync(async (req: Request, res: Response) 
   );
 });
 
+const createClinicForProvider = catchAsync(async (req: Request, res: Response) => {
+  const clinic = await clinicService.createClinic(req.body);
+
+  res.status(httpStatus.CREATED).json(
+    response({
+      status: httpStatus.CREATED,
+      message: "Clinic created successfully by provider",
+      data: clinic,
+    })
+  );
+});
+
 // Clinic member routes (uses authenticated user's clinic)
-const getOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+const getOwnClinic = catchAsync(async (req: Request, res: Response) => {
   const clinicId = req.user?.clinicId;
 
   if (!clinicId) {
@@ -58,7 +65,7 @@ const getOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response)
   );
 });
 
-const updateOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+const updateOwnClinic = catchAsync(async (req: Request, res: Response) => {
   const clinicId = req.user?.clinicId;
 
   if (!clinicId) {
@@ -88,7 +95,7 @@ const updateOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Respon
   );
 });
 
-const updateOwnClinicPermissions = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+const updateOwnClinicPermissions = catchAsync(async (req: Request, res: Response) => {
   const clinicId = req.user?.clinicId;
 
   if (!clinicId) {
@@ -112,7 +119,7 @@ const updateOwnClinicPermissions = catchAsync(async (req: AuthenticatedRequest, 
   );
 });
 
-const deleteOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+const deleteOwnClinic = catchAsync(async (req: Request, res: Response) => {
   const clinicId = req.user?.clinicId;
 
   if (!clinicId) {
@@ -130,11 +137,11 @@ const deleteOwnClinic = catchAsync(async (req: AuthenticatedRequest, res: Respon
   );
 });
 
-
 export default {
   // Provider routes
   getAllClinicsForProvider,
   getClinicByIdForProvider,
+  createClinicForProvider,
 
   // Clinic member routes
   getOwnClinic,

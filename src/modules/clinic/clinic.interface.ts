@@ -9,6 +9,9 @@ export interface IClinic {
   address?: any; // Json in Prisma
   logo?: string | null;
   permissions?: any; // Json
+  description?: string | null;
+  color?: string | null;
+  publicToken?: string | null;
   ownerId: string;
   owner?: IUser;
   // Relations - using `any` for now or better types if available
