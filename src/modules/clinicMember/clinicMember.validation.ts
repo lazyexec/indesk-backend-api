@@ -4,7 +4,7 @@ import Joi from "joi";
 const addMember = {
   body: Joi.object().keys({
     email: Joi.string().email().required(),
-    role: Joi.string().valid("admin", "clinician").required(),
+    role: Joi.string().valid("admin", "clinician").optional().default('clinician'),
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     phoneNumber: Joi.string().optional(),
@@ -13,7 +13,7 @@ const addMember = {
       then: Joi.required(),
       otherwise: Joi.forbidden(),
     }),
-    bio: Joi.string().optional(),
+    bio: Joi.string().optional(), 
     availability: Joi.any().optional(),
     specialization: Joi.array().items(Joi.string()).optional(),
   }),

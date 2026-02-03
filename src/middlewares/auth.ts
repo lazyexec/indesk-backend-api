@@ -11,18 +11,18 @@ const verifyCallback =
     req: Request,
     resolve: () => void,
     reject: (error: ApiError) => void,
-    requiredRights: string[]
+    requiredRights: string[],
   ) =>
   async (err: Error | null, user: any | false, info: any) => {
     // Handle authentication errors
     if (err) {
       return reject(
-        new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Authentication error")
+        new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Authentication error"),
       );
     }
     if (info || !user) {
       return reject(
-        new ApiError(httpStatus.UNAUTHORIZED, "You are not authorized")
+        new ApiError(httpStatus.UNAUTHORIZED, "You are not authorized"),
       );
     }
 
@@ -34,8 +34,8 @@ const verifyCallback =
       return reject(
         new ApiError(
           httpStatus.FORBIDDEN,
-          "User is restricted, Please contact support"
-        )
+          "User is restricted, Please contact support",
+        ),
       );
     }
 
@@ -46,10 +46,10 @@ const verifyCallback =
     req.user = user;
 
     // Then check permissions
-    if (requiredRights.length > 0) {
+    if (user.role !== "provider" && requiredRights.length > 0) {
       const userRights = await getUserPermissions(user);
       const hasRequiredRights = requiredRights.some((right) =>
-        userRights.includes(right)
+        userRights.includes(right),
       );
 
       if (!hasRequiredRights) {
@@ -63,9 +63,9 @@ const getClinicIdForUser = async (userId: string): Promise<string | null> => {
   // First check if user owns a clinic
   const ownedClinic = await prisma.clinic.findFirst({
     where: { ownerId: userId },
-    select: { id: true }
+    select: { id: true },
   });
-  
+
   if (ownedClinic) {
     return ownedClinic.id;
   }
@@ -73,7 +73,7 @@ const getClinicIdForUser = async (userId: string): Promise<string | null> => {
   // Then check if user is a member of a clinic
   const clinicMember = await prisma.clinicMember.findFirst({
     where: { userId },
-    select: { clinicId: true }
+    select: { clinicId: true },
   });
 
   return clinicMember?.clinicId || null;
@@ -93,7 +93,7 @@ const auth =
       passport.authenticate(
         "jwt",
         { session: false },
-        verifyCallback(req, resolve, reject, requiredRights)
+        verifyCallback(req, resolve, reject, requiredRights),
       )(req, res, (err?: any) => {
         if (err) {
           return next(err);
@@ -106,7 +106,7 @@ const auth =
   };
 
 const getClinicMemberPermissions = async (
-  userId: string
+  userId: string,
 ): Promise<string[]> => {
   // First check if user is a clinic member
   const clinician = await prisma.clinicMember.findFirst({
@@ -143,7 +143,9 @@ const getClinicMemberPermissions = async (
     >;
 
     if (clinician.role === "clinician") {
-      return Object.keys(permissions).filter((key) => permissions[key] === true);
+      return Object.keys(permissions).filter(
+        (key) => permissions[key] === true,
+      );
     }
   }
 
@@ -168,7 +170,7 @@ const getClinicMemberPermissions = async (
   }
 
   // No clinic association at all
-  return ['common'];
+  return ["common"];
 };
 
 export default auth;

@@ -6,7 +6,7 @@ import limitService from "../subscription/limit.service";
 
 const createClient = async (
   userId: string,
-  clientBody: IClient
+  clientBody: IClient,
 ): Promise<any> => {
   // Destructure only the fields we need
   const {
@@ -39,7 +39,10 @@ const createClient = async (
   });
 
   if (clientExists) {
-    throw new ApiError(httpStatus.CONFLICT, "Email already exists in this clinic!");
+    throw new ApiError(
+      httpStatus.CONFLICT,
+      "Email already exists in this clinic!",
+    );
   }
 
   // Verify clinic exists and get the user's clinic member ID
@@ -51,7 +54,10 @@ const createClient = async (
   });
 
   if (!clinicAccess) {
-    throw new ApiError(httpStatus.FORBIDDEN, "You don't have access to this clinic");
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "You don't have access to this clinic",
+    );
   }
 
   // Validate assigned clinician if provided
@@ -68,7 +74,7 @@ const createClient = async (
     if (clinicMember.clinicId !== clinicId) {
       throw new ApiError(
         httpStatus.BAD_REQUEST,
-        "Assigned clinician does not belong to this clinic"
+        "Assigned clinician does not belong to this clinic",
       );
     }
 
@@ -76,7 +82,7 @@ const createClient = async (
     if (clinicMember.role !== "clinician") {
       throw new ApiError(
         httpStatus.BAD_REQUEST,
-        "Assigned member must have clinician role"
+        "Assigned member must have clinician role",
       );
     }
   }
@@ -153,7 +159,21 @@ const getClients = async (filter: any, options: any) => {
       skip,
       orderBy: sort,
       include: {
-        assignedClinician: true,
+        assignedClinician: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                avatar: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+        appointments: true,
+        notes: true,
       },
     }),
     prisma.client.count({ where }),

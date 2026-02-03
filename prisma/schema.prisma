@@ -468,17 +468,24 @@ model Transaction {
 }
 
 model Invoice {
-  id          String        @id @default(uuid())
-  clientId    String
-  client      Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  clinicId    String
-  clinic      Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  id       String @id @default(uuid())
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  clinicId String
+  clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  // New item-based invoice fields
+  items       Json // Store invoice items as JSON
+  subtotal    Float
+  tax         Float
   totalAmount Float
+
   status      InvoiceStatus @default(pending)
-  issueDate   DateTime
+  invoiceDate DateTime // Renamed from issueDate for consistency
   dueDate     DateTime
   publicToken String?       @unique // Token for public invoice access
 
+  // Keep appointments relation for backward compatibility
   appointments Appointment[]
 
   createdAt DateTime @default(now())

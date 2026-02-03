@@ -13,7 +13,6 @@ const createSession = {
         email: Joi.boolean().optional().default(false),
       })
       .optional(),
-    clinicId: Joi.string().uuid().required(),
   }),
 };
 

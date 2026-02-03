@@ -92,7 +92,7 @@ const submitAssessment = {
         Joi.object().keys({
           questionId: Joi.string().uuid().required(),
           answer: Joi.string().required(),
-        })
+        }),
       )
       .min(1)
       .required(),

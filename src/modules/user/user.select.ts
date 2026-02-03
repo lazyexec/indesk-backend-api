@@ -17,6 +17,21 @@ const getUserSelect = {
   lastLoginAt: true,
   createdAt: true,
   updatedAt: true,
+  clinicMemberships: {
+    select: {
+      role: true,
+      clinic: {
+        select: {
+          permissions: true,
+        },
+      },
+    },
+  },
+  ownedClinics: {
+    select: {
+      permissions: true,
+    },
+  },
 };
 
 export default { getUserSelect };

@@ -6,13 +6,16 @@ import response from "../../utils/response";
 import pick from "../../utils/pick";
 
 const createSession = catchAsync(async (req: Request, res: Response) => {
-  const session = await sessionService.createSession(req.body);
+  const session = await sessionService.createSession({
+    ...req.body,
+    clinicId: req.user?.clinicId!,
+  });
   res.status(httpStatus.CREATED).json(
     response({
       status: httpStatus.CREATED,
       message: "Session created successfully",
       data: session,
-    })
+    }),
   );
 });
 
@@ -25,7 +28,7 @@ const getSessions = catchAsync(async (req: Request, res: Response) => {
       status: httpStatus.OK,
       message: "Sessions retrieved successfully",
       data: result,
-    })
+    }),
   );
 });
 
@@ -36,21 +39,21 @@ const getSession = catchAsync(async (req: Request, res: Response) => {
       status: httpStatus.OK,
       message: "Session retrieved successfully",
       data: session,
-    })
+    }),
   );
 });
 
 const updateSession = catchAsync(async (req: Request, res: Response) => {
   const session = await sessionService.updateSession(
     req.params.sessionId,
-    req.body
+    req.body,
   );
   res.status(httpStatus.OK).json(
     response({
       status: httpStatus.OK,
       message: "Session updated successfully",
       data: session,
-    })
+    }),
   );
 });
 
@@ -60,7 +63,7 @@ const deleteSession = catchAsync(async (req: Request, res: Response) => {
     response({
       status: httpStatus.OK,
       message: "Session deleted successfully",
-    })
+    }),
   );
 });
 

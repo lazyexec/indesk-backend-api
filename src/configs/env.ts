@@ -79,6 +79,10 @@ const validator = Joi.object()
     MAILCHIMP_CLIENT_SECRET: Joi.string()
       .optional()
       .description("Mailchimp OAuth Client Secret"),
+    // AI API Keys
+    GEMINI_API_KEY: Joi.string()
+      .optional()
+      .description("Google Gemini API Key"),
   })
   .unknown();
 
@@ -154,6 +158,9 @@ const env = {
     clientId: value.GOOGLE_CLIENT_ID,
     clientSecret: value.GOOGLE_CLIENT_SECRET,
     redirectUri: value.BACKEND_URL + '/api/v1/integration/oauth/callback/google_calendar',
-  }
+  },
+  ai_api: {
+    gemini: value.GEMINI_API_KEY,
+  },
 };
 export default env;

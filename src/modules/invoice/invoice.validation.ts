@@ -4,15 +4,18 @@ import { InvoiceStatus } from "../../../generated/prisma/client";
 const createInvoice = {
   body: Joi.object().keys({
     clientId: Joi.string().required().uuid(),
-    appointmentIds: Joi.array().items(Joi.string().uuid()).min(1).required(),
-    issueDate: Joi.date().required(),
-    dueDate: Joi.date().required().greater(Joi.ref("issueDate")),
-    // totalAmount can be optionally passed, otherwise calculated from appointments
-    totalAmount: Joi.number().min(0),
-    status: Joi.string()
-      .valid(...Object.values(InvoiceStatus))
-      .default(InvoiceStatus.pending),
-  }),
+    items: Joi.array().items(Joi.object().keys({
+      description: Joi.string().required(),
+      quantity: Joi.number().required(),
+      unitPrice: Joi.number().required(),
+      total: Joi.number().required()
+    })).required(),
+    subtotal: Joi.number().required(),
+    tax: Joi.number().required(),
+    total: Joi.number().required(),
+    invoiceDate: Joi.date().required(),
+    dueDate: Joi.date().required()
+  })
 };
 
 const getInvoices = {
@@ -38,10 +41,17 @@ const updateInvoice = {
   body: Joi.object()
     .keys({
       clientId: Joi.string().uuid(),
-      appointmentIds: Joi.array().items(Joi.string().uuid()).min(1),
-      issueDate: Joi.date(),
-      dueDate: Joi.date().greater(Joi.ref("issueDate")),
-      totalAmount: Joi.number().min(0),
+      items: Joi.array().items(Joi.object().keys({
+        description: Joi.string().required(),
+        quantity: Joi.number().required(),
+        unitPrice: Joi.number().required(),
+        total: Joi.number().required()
+      })),
+      subtotal: Joi.number(),
+      tax: Joi.number(),
+      total: Joi.number(),
+      invoiceDate: Joi.date(),
+      dueDate: Joi.date(),
       status: Joi.string().valid(...Object.values(InvoiceStatus)),
     })
     .min(1),

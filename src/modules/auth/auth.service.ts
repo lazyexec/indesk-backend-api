@@ -8,6 +8,41 @@ import bcrypt from "bcrypt";
 import userService from "../user/user.service";
 import userSelect from "../user/user.select";
 import { IUser } from "../user/user.interface";
+import all_permissions from "../../configs/permissions";
+
+const calculateUserPermissions = (user: any): Record<string, boolean> => {
+  // If user has clinic memberships, use the first one (primary clinic)
+  if (user.clinicMemberships && user.clinicMemberships.length > 0) {
+    const membership = user.clinicMemberships[0];
+
+    if (membership.role === "superAdmin" || membership.role === "admin") {
+      // Admins and superAdmins get all permissions enabled
+      return Object.keys(all_permissions).reduce((acc, key) => {
+        acc[key] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+    }
+
+    if (membership.role === "clinician") {
+      // Return the clinic's permission settings
+      return (membership.clinic.permissions || {}) as Record<string, boolean>;
+    }
+  }
+
+  // If user owns clinics, give them all permissions enabled
+  if (user.ownedClinics && user.ownedClinics.length > 0) {
+    return Object.keys(all_permissions).reduce((acc, key) => {
+      acc[key] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+  }
+
+  // Default permissions for users without clinic association - all disabled
+  return Object.keys(all_permissions).reduce((acc, key) => {
+    acc[key] = false;
+    return acc;
+  }, {} as Record<string, boolean>);
+};
 
 const createUser = async (userData: IUser) => {
   return await prisma.user.create({
@@ -90,6 +125,17 @@ const verifyAccount = async (email: string, code: string) => {
     },
     select: userSelect.getUserSelect,
   });
+
+  // Calculate and attach permissions, then remove redundant clinic data
+  if (updatedUser) {
+    const permissions = calculateUserPermissions(updatedUser);
+    const { clinicMemberships, ownedClinics, ...userWithoutClinicData } = updatedUser;
+    return {
+      ...userWithoutClinicData,
+      permissions,
+    };
+  }
+
   return updatedUser;
 };
 
@@ -108,6 +154,17 @@ const login = async (email: string, password: string) => {
     where: { id: user.id },
     select: userSelect.getUserSelect,
   });
+
+  // Calculate and attach permissions, then remove redundant clinic data
+  if (filteredUser) {
+    const permissions = calculateUserPermissions(filteredUser);
+    const { clinicMemberships, ownedClinics, ...userWithoutClinicData } = filteredUser;
+    return {
+      ...userWithoutClinicData,
+      permissions,
+    };
+  }
+
   return filteredUser;
 };
 
