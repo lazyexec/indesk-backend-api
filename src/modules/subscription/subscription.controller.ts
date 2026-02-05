@@ -19,7 +19,7 @@ const getCurrentSubscription = catchAsync(async (req: AuthenticatedRequest, res:
   }
 
   const subscription = await subscriptionService.checkSubscriptionStatus(req.user.clinicId);
-  const usageStats = await limitService.getClientUsageStats(req.user.clinicId);
+  const usageStats = await limitService.getUsageStats(req.user.clinicId);
 
   res.status(httpStatus.OK).json(
     response({
@@ -35,7 +35,7 @@ const getCurrentSubscription = catchAsync(async (req: AuthenticatedRequest, res:
 
 const getAllPlans = catchAsync(async (req: Request, res: Response) => {
   const plans = await planService.getAllPlans();
-  
+
   res.status(httpStatus.OK).json(
     response({
       status: httpStatus.OK,
@@ -47,7 +47,7 @@ const getAllPlans = catchAsync(async (req: Request, res: Response) => {
 
 const upgradeSubscription = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
   const { planType } = req.body;
-  
+
   if (!req.user?.clinicId) {
     throw new ApiError(httpStatus.BAD_REQUEST, "No clinic association found");
   }
@@ -58,10 +58,10 @@ const upgradeSubscription = catchAsync(async (req: AuthenticatedRequest, res: Re
 
   // Get the new plan
   const newPlan = await planService.getPlanByType(planType);
-  
+
   // Get current subscription
   const currentSubscription = await subscriptionService.getSubscriptionByClinicId(req.user.clinicId);
-  
+
   // If upgrading to a paid plan and no Stripe customer exists, create one
   if (newPlan.price > 0 && !currentSubscription.stripeCustomerId) {
     // This would typically require clinic/user info to create customer
@@ -89,7 +89,7 @@ const cancelSubscription = catchAsync(async (req: AuthenticatedRequest, res: Res
   }
 
   const subscription = await subscriptionService.getSubscriptionByClinicId(req.user.clinicId);
-  
+
   // If there's a Stripe subscription, cancel it
   if (subscription.stripeSubscriptionId) {
     await stripeService.cancelSubscription(subscription.stripeSubscriptionId);
@@ -114,7 +114,7 @@ const startTrial = catchAsync(async (req: AuthenticatedRequest, res: Response) =
 
   // Get professional plan for trial
   const professionalPlan = await planService.getPlanByType(PlanType.professional);
-  
+
   // Calculate trial dates (14 days)
   const trialStart = new Date();
   const trialEnd = new Date();
@@ -142,7 +142,7 @@ const getUsageStats = catchAsync(async (req: AuthenticatedRequest, res: Response
     throw new ApiError(httpStatus.BAD_REQUEST, "No clinic association found");
   }
 
-  const usageStats = await limitService.getClientUsageStats(req.user.clinicId);
+  const usageStats = await limitService.getUsageStats(req.user.clinicId);
 
   res.status(httpStatus.OK).json(
     response({

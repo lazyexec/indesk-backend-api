@@ -9,6 +9,7 @@ const seedDefaultPlans = async () => {
       description: "Basic features for small practices",
       price: 0,
       clientLimit: 10,
+      clinicianLimit: 1, // 1 clinician for free plan
       features: {
         clients: true,
         appointments: true,
@@ -26,6 +27,7 @@ const seedDefaultPlans = async () => {
       description: "Advanced features for growing practices",
       price: 29.99,
       clientLimit: 100,
+      clinicianLimit: 5, // 5 clinicians for professional plan
       features: {
         clients: true,
         appointments: true,
@@ -43,6 +45,7 @@ const seedDefaultPlans = async () => {
       description: "Full features for large practices",
       price: 99.99,
       clientLimit: 0, // Unlimited
+      clinicianLimit: 0, // Unlimited clinicians for enterprise
       features: {
         clients: true,
         appointments: true,
@@ -57,12 +60,12 @@ const seedDefaultPlans = async () => {
   ];
 
   const results = [];
-  
+
   for (const planData of defaultPlans) {
     try {
       // Check if plan already exists
       const existingPlan = await planService.getPlanByType(planData.type).catch(() => null);
-      
+
       if (!existingPlan) {
         const plan = await planService.createPlan(planData);
         results.push({ success: true, plan, action: 'created' });
@@ -72,10 +75,10 @@ const seedDefaultPlans = async () => {
         console.log(`ℹ️  ${planData.name} already exists`);
       }
     } catch (error) {
-      results.push({ 
-        success: false, 
+      results.push({
+        success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        planType: planData.type 
+        planType: planData.type
       });
       console.error(`❌ Failed to create ${planData.name}:`, error);
     }
@@ -87,11 +90,11 @@ const seedDefaultPlans = async () => {
 const updatePlans = async () => {
   try {
     const plans = await planService.getAllPlans(true);
-    
+
     for (const plan of plans) {
       // Update features based on plan type
       let updatedFeatures = {};
-      
+
       switch (plan.type) {
         case PlanType.free:
           updatedFeatures = {
@@ -134,7 +137,7 @@ const updatePlans = async () => {
       await planService.updatePlan(plan.id, {
         features: updatedFeatures
       });
-      
+
       console.log(`✅ Updated features for ${plan.name}`);
     }
   } catch (error) {

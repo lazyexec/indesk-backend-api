@@ -12,6 +12,14 @@ const router: Router = express.Router();
  * Payment is handled via Stripe Checkout and webhook
  */
 
+// Create plan (provider only)
+router.post(
+  "/create",
+  auth("provider"),
+  validate(plansValidation.createPlan),
+  plansController.createPlan
+);
+
 // Get available plans (public - no auth required)
 router.get(
   "/available",

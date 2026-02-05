@@ -57,6 +57,36 @@ const initiatePurchase = {
   }),
 };
 
+const createPlan = {
+  body: Joi.object().keys({
+    name: Joi.string().required().trim().min(2).max(100).messages({
+      "string.min": "Plan name must be at least 2 characters",
+      "string.max": "Plan name cannot exceed 100 characters",
+      "any.required": "Plan name is required",
+    }),
+    type: Joi.string()
+      .valid(...Object.values(PlanType))
+      .required()
+      .messages({
+        "any.only": "Please select a valid plan type",
+        "any.required": "Plan type is required",
+      }),
+    description: Joi.string().optional().trim().max(500).messages({
+      "string.max": "Description cannot exceed 500 characters",
+    }),
+    price: Joi.number().required().min(0).messages({
+      "number.min": "Price cannot be negative",
+      "any.required": "Price is required",
+    }),
+    clinicianLimit: Joi.number().integer().required().min(0).messages({
+      "number.base": "Clinician limit must be a number",
+      "number.integer": "Clinician limit must be an integer",
+      "number.min": "Clinician limit cannot be negative",
+      "any.required": "Clinician limit is required",
+    }),
+  }),
+};
+
 const completePurchase = {
   body: Joi.object().keys({
     paymentIntentId: Joi.string().required().messages({
@@ -90,6 +120,7 @@ const cancelPurchase = {
 
 export default {
   initiatePurchase,
+  createPlan,
   completeFreePurchase,
   cancelPurchase,
 };

@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 import email from "../../configs/email";
 import env from "../../configs/env";
 import { ClinicRole } from "../../../generated/prisma/client";
+import limitService from "../subscription/limit.service";
 
 const generateRandomPassword = (): string => {
   const length = 12;
@@ -42,6 +43,7 @@ const addClinicMember = async (
     specialization,
     ...userData
   } = memberData;
+
   // Verify clinic exists
   const clinic = await prisma.clinic.findFirst({
     where: { id: clinicId },
@@ -49,6 +51,11 @@ const addClinicMember = async (
 
   if (!clinic) {
     throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
+  }
+
+  // Check clinician limit before adding (only for clinician, admin, superAdmin roles)
+  if (['clinician', 'admin', 'superAdmin'].includes(role)) {
+    await limitService.enforceClinicianLimit(clinicId);
   }
 
   // Verify actor permissions

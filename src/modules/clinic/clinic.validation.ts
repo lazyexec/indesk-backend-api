@@ -32,6 +32,7 @@ const updateClinic = {
   body: Joi.object().keys({
     name: Joi.string().min(2).max(100).optional(),
     email: Joi.string().email().optional(),
+    color: Joi.string().optional(),
     phoneNumber: Joi.string().optional(),
     countryCode: Joi.string().when("phoneNumber", {
       is: Joi.exist(),

@@ -503,6 +503,7 @@ model Plan {
   description String?
   price       Float    @default(0)
   clientLimit Int      @default(0) // 0 means unlimited
+  clinicianLimit Int   @default(0) // 0 means unlimited
   features    Json     @default("{}") // JSON object with feature flags
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())

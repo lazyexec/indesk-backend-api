@@ -10,7 +10,7 @@ import subscriptionService from "../subscription/subscription.service";
 import crypto from "crypto";
 
 const createClinic = async (
-  data: Partial<IClinic> & { ownerEmail?: string }
+  data: Partial<IClinic> & { ownerEmail?: string },
 ) => {
   const { ownerEmail, name } = data;
 
@@ -74,21 +74,23 @@ const createClinic = async (
     try {
       await subscriptionService.assignDefaultSubscription(clinic.id);
     } catch (subscriptionError) {
-      console.error('Failed to assign default subscription:', subscriptionError);
+      console.error(
+        "Failed to assign default subscription:",
+        subscriptionError,
+      );
       // Don't fail clinic creation if subscription assignment fails
       // This can be handled later or retried
     }
-
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
         throw new ApiError(
           httpStatus.CONFLICT,
-          "Clinic with this email already exists"
+          "Clinic with this email already exists",
         );
       }
     }
-    console.log(error)
+    console.log(error);
     throw new ApiError(httpStatus.BAD_REQUEST, "Unknown error occurred!");
   }
 
@@ -140,7 +142,7 @@ const getClinicById = async (clinicId: string) => {
 const updateClinic = async (
   clinicId: string,
   updateData: Partial<IClinic>,
-  files: any
+  files: any,
 ) => {
   const clinic = await prisma.clinic.findUnique({
     where: { id: clinicId },
@@ -190,8 +192,11 @@ const updateClinic = async (
 };
 
 const deleteClinic = async (id: string) => {
-  const clinic = await prisma.clinic.delete({ where: { id } });
-  return clinic;
+  const clinic = await prisma.clinic.findUnique({ where: { id } });
+  if (!clinic) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
+  }
+  await prisma.clinic.delete({ where: { id } });
 };
 
 const getClinics = async (options: any) => {

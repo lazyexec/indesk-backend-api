@@ -42,6 +42,40 @@ interface IPurchaseResult {
   message: string;
 }
 
+interface ICreatePlanData {
+  name: string;
+  type: PlanType;
+  description?: string;
+  price: number;
+  clinicianLimit: number;
+}
+
+/**
+ * Create a new subscription plan
+ */
+const createPlan = async (data: ICreatePlanData) => {
+  const plan = await planService.createPlan({
+    name: data.name,
+    type: data.type,
+    description: data.description,
+    price: data.price,
+    clientLimit: 0, // Default to unlimited clients
+    clinicianLimit: data.clinicianLimit,
+    features: {},
+  });
+
+  return {
+    id: plan.id,
+    name: plan.name,
+    type: plan.type,
+    description: plan.description,
+    price: plan.price,
+    clinicianLimit: plan.clinicianLimit,
+    clientLimit: plan.clientLimit,
+    isActive: plan.isActive,
+  };
+};
+
 /**
  * Initiate clinic purchase process
  * Creates a pending clinic and returns Stripe Checkout Session URL
@@ -336,6 +370,7 @@ const getAvailablePlans = async () => {
     description: plan.description,
     price: plan.price,
     clientLimit: plan.clientLimit,
+    clinicianLimit: plan.clinicianLimit,
     features: plan.features,
     isPopular: plan.type === "professional", // Mark professional as popular
     savings: plan.type === "enterprise" ? "Save 20%" : null,
@@ -398,6 +433,7 @@ const getPurchaseStatus = async (userId: string) => {
 };
 
 export default {
+  createPlan,
   initiatePurchase,
   completeFreePurchase,
   cancelPurchase,

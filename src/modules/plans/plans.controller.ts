@@ -6,6 +6,29 @@ import response from "../../utils/response";
 import pick from "../../utils/pick";
 
 /**
+ * Create a new plan (provider only)
+ */
+const createPlan = catchAsync(async (req: Request, res: Response) => {
+  const planData = pick(req.body, [
+    "name",
+    "type",
+    "description",
+    "price",
+    "clinicianLimit",
+  ]);
+
+  const plan = await plansService.createPlan(planData);
+
+  res.status(httpStatus.CREATED).json(
+    response({
+      status: httpStatus.CREATED,
+      message: "Plan created successfully",
+      data: plan,
+    })
+  );
+});
+
+/**
  * Get available plans for clinic purchase
  */
 const getAvailablePlans = catchAsync(async (req: Request, res: Response) => {
@@ -101,6 +124,7 @@ const cancelPurchase = catchAsync(async (req: Request, res: Response) => {
 });
 
 export default {
+  createPlan,
   getAvailablePlans,
   getPurchaseStatus,
   initiatePurchase,

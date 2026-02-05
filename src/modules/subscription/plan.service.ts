@@ -9,6 +9,7 @@ const createPlan = async (data: {
   description?: string;
   price: number;
   clientLimit: number;
+  clinicianLimit?: number;
   features: Record<string, boolean>;
 }) => {
   // Validate that plan type doesn't already exist
@@ -25,6 +26,11 @@ const createPlan = async (data: {
     throw new ApiError(httpStatus.BAD_REQUEST, "Client limit cannot be negative");
   }
 
+  // Validate clinician limit
+  if (data.clinicianLimit !== undefined && data.clinicianLimit < 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Clinician limit cannot be negative");
+  }
+
   // Validate price
   if (data.price < 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Price cannot be negative");
@@ -37,6 +43,7 @@ const createPlan = async (data: {
       description: data.description,
       price: data.price,
       clientLimit: data.clientLimit,
+      clinicianLimit: data.clinicianLimit || 0,
       features: data.features,
     }
   });
@@ -78,6 +85,7 @@ const updatePlan = async (id: string, data: {
   description?: string;
   price?: number;
   clientLimit?: number;
+  clinicianLimit?: number;
   features?: Record<string, boolean>;
   isActive?: boolean;
 }) => {
@@ -87,6 +95,11 @@ const updatePlan = async (id: string, data: {
   // Validate client limit if provided
   if (data.clientLimit !== undefined && data.clientLimit < 0) {
     throw new ApiError(httpStatus.BAD_REQUEST, "Client limit cannot be negative");
+  }
+
+  // Validate clinician limit if provided
+  if (data.clinicianLimit !== undefined && data.clinicianLimit < 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, "Clinician limit cannot be negative");
   }
 
   // Validate price if provided
