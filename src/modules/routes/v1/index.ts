@@ -20,6 +20,7 @@ import dashboardRouter from "../../dashboard/dashboard.route";
 import issueRouter from "../../issue/issue.route";
 import transactionRouter from "../../transaction/transaction.route";
 import clinicalNoteRouter from "../../clinicalNote/clinicalNote.route";
+import aiAssistantRouter from "../../ai-assistant/ai-assistant.route";
 
 const mainRouter: Router = express.Router();
 
@@ -112,6 +113,10 @@ const routes: routeObjects[] = [
   {
     path: "/clinical-note",
     route: clinicalNoteRouter,
+  },
+  {
+    path: "/ai-assistant",
+    route: aiAssistantRouter,
   },
 ];
 
