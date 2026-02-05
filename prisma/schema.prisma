@@ -7,8 +7,8 @@
 // TODO: Change Phone Number to String
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
 }
 
 datasource db {
@@ -497,17 +497,17 @@ model Invoice {
 }
 
 model Plan {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  type        PlanType @unique
-  description String?
-  price       Float    @default(0)
-  clientLimit Int      @default(0) // 0 means unlimited
-  clinicianLimit Int   @default(0) // 0 means unlimited
-  features    Json     @default("{}") // JSON object with feature flags
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(uuid())
+  name           String   @unique
+  type           PlanType @unique
+  description    String?
+  price          Float    @default(0)
+  clientLimit    Int      @default(0) // 0 means unlimited
+  clinicianLimit Int      @default(0) // 0 means unlimited
+  features       Json     @default("{}") // JSON object with feature flags
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   subscriptions Subscription[]
 

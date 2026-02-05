@@ -6,7 +6,7 @@ import {
   handleApiError,
   retryWithBackoff,
 } from "../integration.helper";
-import { IntegrationType } from "../../../../generated/prisma/client";
+import { IntegrationType } from "@prisma/client";
 import env from "../../../configs/env";
 
 const INTEGRATION_TYPE = IntegrationType.google_calendar;

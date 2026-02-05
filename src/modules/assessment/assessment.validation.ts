@@ -123,6 +123,12 @@ const getAssessmentInstance = {
   }),
 };
 
+const createAssessmentAi = {
+  body: Joi.object().keys({
+    topic: Joi.string().required().min(3).max(200),
+  }),
+};
+
 export default {
   createAssessmentTemplate,
   getAssessmentTemplates,
@@ -135,4 +141,5 @@ export default {
   submitAssessment,
   getAssessmentInstances,
   getAssessmentInstance,
+  createAssessmentAi,
 };

@@ -1,5 +1,5 @@
 import prisma from "../../configs/prisma";
-import { AppointmentStatus } from "../../../generated/prisma/client";
+import { AppointmentStatus } from "@prisma/client";
 
 const getFinancialOverview = async (clinicId: string, months: number = 6) => {
   const endDate = new Date();
@@ -40,19 +40,19 @@ const getFinancialOverview = async (clinicId: string, months: number = 6) => {
   // Calculate monthly revenue
   const monthlyRevenue = [];
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+
   for (let i = months - 1; i >= 0; i--) {
     const monthStart = new Date();
     monthStart.setMonth(monthStart.getMonth() - i);
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    
+
     const monthEnd = new Date(monthStart);
     monthEnd.setMonth(monthEnd.getMonth() + 1);
     monthEnd.setDate(0);
     monthEnd.setHours(23, 59, 59, 999);
 
-    const monthAppointments = completedAppointments.filter(apt => 
+    const monthAppointments = completedAppointments.filter(apt =>
       apt.startTime >= monthStart && apt.startTime <= monthEnd
     );
 
@@ -71,12 +71,12 @@ const getFinancialOverview = async (clinicId: string, months: number = 6) => {
   // Calculate totals and growth
   const totalIncome = monthlyRevenue.reduce((sum, month) => sum + month.revenue, 0);
   const avgRevenue = totalIncome / months;
-  
+
   // Calculate growth (current month vs previous month)
   const currentMonth = monthlyRevenue[monthlyRevenue.length - 1];
   const previousMonth = monthlyRevenue[monthlyRevenue.length - 2];
-  const growthRate = previousMonth && previousMonth.revenue > 0 
-    ? ((currentMonth.revenue - previousMonth.revenue) / previousMonth.revenue) * 100 
+  const growthRate = previousMonth && previousMonth.revenue > 0
+    ? ((currentMonth.revenue - previousMonth.revenue) / previousMonth.revenue) * 100
     : 0;
 
   // Calculate outstanding amounts (pending/scheduled appointments)
@@ -142,7 +142,7 @@ const getIncomeSourcesBreakdown = async (clinicId: string, months: number = 6) =
   const incomeBySource = appointmentsBySession.reduce((acc, apt) => {
     const sessionName = apt.session.name;
     const revenue = apt.transaction?.amount || apt.session.price || 0;
-    
+
     if (!acc[sessionName]) {
       acc[sessionName] = {
         name: sessionName,
@@ -150,16 +150,16 @@ const getIncomeSourcesBreakdown = async (clinicId: string, months: number = 6) =
         count: 0
       };
     }
-    
+
     acc[sessionName].revenue += revenue;
     acc[sessionName].count += 1;
-    
+
     return acc;
   }, {} as Record<string, { name: string; revenue: number; count: number }>);
 
   // Convert to array and calculate percentages
   const totalRevenue = Object.values(incomeBySource).reduce((sum, source) => sum + source.revenue, 0);
-  
+
   const sources = Object.values(incomeBySource).map(source => ({
     ...source,
     percentage: totalRevenue > 0 ? (source.revenue / totalRevenue) * 100 : 0
@@ -232,8 +232,8 @@ const getSessionTypeDistribution = async (clinicId: string, months: number = 6) 
   const totalSessions = appointments.length;
   Object.keys(distribution).forEach(key => {
     const category = key as keyof typeof distribution;
-    distribution[category].percentage = totalSessions > 0 
-      ? (distribution[category].count / totalSessions) * 100 
+    distribution[category].percentage = totalSessions > 0
+      ? (distribution[category].count / totalSessions) * 100
       : 0;
   });
 
@@ -257,7 +257,7 @@ const getClientGrowthAnalysis = async (clinicId: string, months: number = 6) => 
     monthStart.setMonth(monthStart.getMonth() - i);
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    
+
     const monthEnd = new Date(monthStart);
     monthEnd.setMonth(monthEnd.getMonth() + 1);
     monthEnd.setDate(0);
@@ -331,7 +331,7 @@ const getClientGrowthAnalysis = async (clinicId: string, months: number = 6) => 
 const getExpensesAnalysis = async (clinicId: string, months: number = 6) => {
   // For now, we'll calculate estimated expenses based on subscription costs
   // In a real implementation, you might have an expenses table
-  
+
   const subscription = await prisma.subscription.findUnique({
     where: { clinicId },
     include: {
@@ -349,8 +349,8 @@ const getExpensesAnalysis = async (clinicId: string, months: number = 6) => {
 
   // Get revenue for margin calculation
   const financialOverview = await getFinancialOverview(clinicId, months);
-  const margin = financialOverview.totalIncome > 0 
-    ? ((financialOverview.totalIncome - totalExpenses) / financialOverview.totalIncome) * 100 
+  const margin = financialOverview.totalIncome > 0
+    ? ((financialOverview.totalIncome - totalExpenses) / financialOverview.totalIncome) * 100
     : 0;
 
   return {
@@ -441,19 +441,19 @@ const getProviderFinancialOverview = async (months: number = 6) => {
   // Calculate monthly revenue across all clinics
   const monthlyRevenue = [];
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  
+
   for (let i = months - 1; i >= 0; i--) {
     const monthStart = new Date();
     monthStart.setMonth(monthStart.getMonth() - i);
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    
+
     const monthEnd = new Date(monthStart);
     monthEnd.setMonth(monthEnd.getMonth() + 1);
     monthEnd.setDate(0);
     monthEnd.setHours(23, 59, 59, 999);
 
-    const monthAppointments = completedAppointments.filter(apt => 
+    const monthAppointments = completedAppointments.filter(apt =>
       apt.startTime >= monthStart && apt.startTime <= monthEnd
     );
 
@@ -472,12 +472,12 @@ const getProviderFinancialOverview = async (months: number = 6) => {
   // Calculate totals and growth
   const totalIncome = monthlyRevenue.reduce((sum, month) => sum + month.revenue, 0);
   const avgRevenue = totalIncome / months;
-  
+
   // Calculate growth (current month vs previous month)
   const currentMonth = monthlyRevenue[monthlyRevenue.length - 1];
   const previousMonth = monthlyRevenue[monthlyRevenue.length - 2];
-  const growthRate = previousMonth && previousMonth.revenue > 0 
-    ? ((currentMonth.revenue - previousMonth.revenue) / previousMonth.revenue) * 100 
+  const growthRate = previousMonth && previousMonth.revenue > 0
+    ? ((currentMonth.revenue - previousMonth.revenue) / previousMonth.revenue) * 100
     : 0;
 
   // Calculate outstanding amounts across all clinics
@@ -547,7 +547,7 @@ const getProviderIncomeSourcesBreakdown = async (months: number = 6) => {
   const incomeBySource = appointmentsBySession.reduce((acc, apt) => {
     const sessionName = apt.session.name;
     const revenue = apt.transaction?.amount || apt.session.price || 0;
-    
+
     if (!acc[sessionName]) {
       acc[sessionName] = {
         name: sessionName,
@@ -556,17 +556,17 @@ const getProviderIncomeSourcesBreakdown = async (months: number = 6) => {
         clinics: new Set()
       };
     }
-    
+
     acc[sessionName].revenue += revenue;
     acc[sessionName].count += 1;
     acc[sessionName].clinics.add(apt.clinic.name);
-    
+
     return acc;
   }, {} as Record<string, { name: string; revenue: number; count: number; clinics: Set<string> }>);
 
   // Convert to array and calculate percentages
   const totalRevenue = Object.values(incomeBySource).reduce((sum, source) => sum + source.revenue, 0);
-  
+
   const sources = Object.values(incomeBySource).map(source => ({
     name: source.name,
     revenue: source.revenue,
@@ -642,8 +642,8 @@ const getProviderSessionTypeDistribution = async (months: number = 6) => {
   const totalSessions = appointments.length;
   Object.keys(distribution).forEach(key => {
     const category = key as keyof typeof distribution;
-    distribution[category].percentage = totalSessions > 0 
-      ? (distribution[category].count / totalSessions) * 100 
+    distribution[category].percentage = totalSessions > 0
+      ? (distribution[category].count / totalSessions) * 100
       : 0;
   });
 
@@ -667,7 +667,7 @@ const getProviderClientGrowthAnalysis = async (months: number = 6) => {
     monthStart.setMonth(monthStart.getMonth() - i);
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
-    
+
     const monthEnd = new Date(monthStart);
     monthEnd.setMonth(monthEnd.getMonth() + 1);
     monthEnd.setDate(0);

@@ -1,5 +1,5 @@
 import prisma from "../../configs/prisma";
-import { AppointmentStatus, SubscriptionStatus } from "../../../generated/prisma/client";
+import { AppointmentStatus, SubscriptionStatus } from "@prisma/client";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 
@@ -11,10 +11,10 @@ import httpStatus from "http-status";
  */
 const getDashboardOverview = async (clinicId: string, filter: any) => {
   const { startDate, endDate } = filter;
-  
+
   // Default to current month if no dates provided
   let dateRange: { gte: Date; lte: Date };
-  
+
   if (startDate && endDate) {
     dateRange = {
       gte: new Date(startDate),
@@ -24,7 +24,7 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    
+
     dateRange = {
       gte: startOfMonth,
       lte: endOfMonth,
@@ -40,23 +40,23 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
     cancelledAppointments,
     upcomingAppointments,
     todayAppointments,
-    
+
     // Client metrics
     totalClients,
     activeClients,
     newClientsThisMonth,
-    
+
     // Revenue metrics
     totalRevenue,
     pendingRevenue,
-    
+
     // Clinic metrics
     totalClinicians,
     activeClinicians,
-    
+
     // Recent appointments
     recentAppointments,
-    
+
     // Subscription info
     subscriptionInfo,
   ] = await Promise.all([
@@ -74,8 +74,8 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
       where: { clinicId, startTime: dateRange, status: AppointmentStatus.cancelled }
     }),
     prisma.appointment.count({
-      where: { 
-        clinicId, 
+      where: {
+        clinicId,
         status: { in: [AppointmentStatus.pending, AppointmentStatus.scheduled] },
         startTime: { gte: new Date() }
       }
@@ -89,7 +89,7 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
         }
       }
     }),
-    
+
     // Client queries
     prisma.client.count({
       where: { clinicId }
@@ -98,17 +98,17 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
       where: { clinicId, status: 'active' }
     }),
     prisma.client.count({
-      where: { 
-        clinicId, 
+      where: {
+        clinicId,
         createdAt: {
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
         }
       }
     }),
-    
+
     // Revenue queries
     prisma.appointment.findMany({
-      where: { 
+      where: {
         clinicId,
         startTime: dateRange,
         transaction: {
@@ -127,7 +127,7 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
       return { _sum: { amount: total } };
     }),
     prisma.appointment.findMany({
-      where: { 
+      where: {
         clinicId,
         startTime: dateRange,
         transaction: {
@@ -145,18 +145,18 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
       const total = appointments.reduce((sum, apt) => sum + (apt.transaction?.amount || 0), 0);
       return { _sum: { amount: total } };
     }),
-    
+
     // Clinic staff queries
     prisma.clinicMember.count({
       where: { clinicId }
     }),
     prisma.clinicMember.count({
-      where: { 
+      where: {
         clinicId,
         user: { isOnline: true }
       }
     }),
-    
+
     // Recent appointments
     prisma.appointment.findMany({
       where: { clinicId },
@@ -190,7 +190,7 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
         }
       }
     }),
-    
+
     // Subscription info
     prisma.subscription.findFirst({
       where: { clinicId },
@@ -207,8 +207,8 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
   ]);
 
   // Calculate completion rate
-  const completionRate = totalAppointments > 0 
-    ? Math.round((completedAppointments / totalAppointments) * 100) 
+  const completionRate = totalAppointments > 0
+    ? Math.round((completedAppointments / totalAppointments) * 100)
     : 0;
 
   // Calculate revenue growth (compare with previous period)
@@ -218,7 +218,7 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
   previousPeriodEnd.setMonth(previousPeriodEnd.getMonth() - 1);
 
   const previousAppointments = await prisma.appointment.findMany({
-    where: { 
+    where: {
       clinicId,
       startTime: {
         gte: previousPeriodStart,
@@ -239,7 +239,7 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
 
   const currentRevenue = totalRevenue._sum?.amount || 0;
   const prevRevenue = previousAppointments.reduce((sum, apt) => sum + (apt.transaction?.amount || 0), 0);
-  const revenueGrowth = prevRevenue > 0 
+  const revenueGrowth = prevRevenue > 0
     ? Math.round(((currentRevenue - prevRevenue) / prevRevenue) * 100)
     : 0;
 
@@ -259,17 +259,17 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
       totalClinicians,
       activeClinicians,
     },
-    
+
     // Financial metrics
     financial: {
       totalRevenue: currentRevenue,
       pendingRevenue: pendingRevenue._sum?.amount || 0,
       revenueGrowth,
-      averageAppointmentValue: totalAppointments > 0 
-        ? Math.round(currentRevenue / totalAppointments) 
+      averageAppointmentValue: totalAppointments > 0
+        ? Math.round(currentRevenue / totalAppointments)
         : 0,
     },
-    
+
     // Recent activity
     recentAppointments: recentAppointments.map(apt => ({
       id: apt.id,
@@ -280,18 +280,18 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
       status: apt.status,
       price: apt.session.price,
     })),
-    
+
     // Subscription info
     subscription: subscriptionInfo ? {
       planName: subscriptionInfo.plan.name,
       status: subscriptionInfo.status,
       clientLimit: subscriptionInfo.plan.clientLimit,
       clientUsage: totalClients,
-      usagePercentage: subscriptionInfo.plan.clientLimit 
+      usagePercentage: subscriptionInfo.plan.clientLimit
         ? Math.round((totalClients / subscriptionInfo.plan.clientLimit) * 100)
         : 0,
     } : null,
-    
+
     // Date range for context
     dateRange,
   };
@@ -305,10 +305,10 @@ const getDashboardOverview = async (clinicId: string, filter: any) => {
  */
 const getDashboardCalendar = async (clinicId: string, filter: any) => {
   const { startDate, endDate, view = 'month' } = filter;
-  
+
   // Default date range based on view
   let dateRange: { gte: Date; lte: Date };
-  
+
   if (startDate && endDate) {
     dateRange = {
       gte: new Date(startDate),
@@ -317,7 +317,7 @@ const getDashboardCalendar = async (clinicId: string, filter: any) => {
   } else {
     // Default based on view type
     const now = new Date();
-    
+
     switch (view) {
       case 'week':
         const startOfWeek = new Date(now);
@@ -328,13 +328,13 @@ const getDashboardCalendar = async (clinicId: string, filter: any) => {
         endOfWeek.setHours(23, 59, 59, 999);
         dateRange = { gte: startOfWeek, lte: endOfWeek };
         break;
-        
+
       case 'day':
         const startOfDay = new Date(now.setHours(0, 0, 0, 0));
         const endOfDay = new Date(now.setHours(23, 59, 59, 999));
         dateRange = { gte: startOfDay, lte: endOfDay };
         break;
-        
+
       default: // month
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
@@ -417,10 +417,10 @@ const getDashboardCalendar = async (clinicId: string, filter: any) => {
  */
 const getClinicianDashboard = async (clinicianId: string, filter: any) => {
   const { startDate, endDate } = filter;
-  
+
   // Default to current month if no dates provided
   let dateRange: { gte: Date; lte: Date };
-  
+
   if (startDate && endDate) {
     dateRange = {
       gte: new Date(startDate),
@@ -430,7 +430,7 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    
+
     dateRange = {
       gte: startOfMonth,
       lte: endOfMonth,
@@ -443,16 +443,16 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
     completedAppointments,
     upcomingAppointments,
     todayAppointments,
-    
+
     // Personal revenue
     totalRevenue,
-    
+
     // Today's schedule
     todaySchedule,
-    
+
     // Recent clients
     recentClients,
-    
+
     // Clinician info
     clinicianInfo,
   ] = await Promise.all([
@@ -463,8 +463,8 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
       where: { clinicianId, startTime: dateRange, status: AppointmentStatus.completed }
     }),
     prisma.appointment.count({
-      where: { 
-        clinicianId, 
+      where: {
+        clinicianId,
         status: { in: [AppointmentStatus.pending, AppointmentStatus.scheduled] },
         startTime: { gte: new Date() }
       }
@@ -478,9 +478,9 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
         }
       }
     }),
-    
+
     prisma.appointment.findMany({
-      where: { 
+      where: {
         clinicianId,
         startTime: dateRange,
         transaction: {
@@ -498,7 +498,7 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
       const total = appointments.reduce((sum, apt) => sum + (apt.transaction?.amount || 0), 0);
       return { _sum: { amount: total } };
     }),
-    
+
     // Today's appointments
     prisma.appointment.findMany({
       where: {
@@ -525,7 +525,7 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
         }
       }
     }),
-    
+
     // Recent unique clients
     prisma.appointment.findMany({
       where: { clinicianId },
@@ -543,7 +543,7 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
         }
       }
     }),
-    
+
     // Clinician details
     prisma.clinicMember.findUnique({
       where: { id: clinicianId },
@@ -565,8 +565,8 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
     }),
   ]);
 
-  const completionRate = totalAppointments > 0 
-    ? Math.round((completedAppointments / totalAppointments) * 100) 
+  const completionRate = totalAppointments > 0
+    ? Math.round((completedAppointments / totalAppointments) * 100)
     : 0;
 
   return {
@@ -578,11 +578,11 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
       todayAppointments,
       completionRate,
       totalRevenue: totalRevenue._sum?.amount || 0,
-      averageAppointmentValue: totalAppointments > 0 
-        ? Math.round((totalRevenue._sum?.amount || 0) / totalAppointments) 
+      averageAppointmentValue: totalAppointments > 0
+        ? Math.round((totalRevenue._sum?.amount || 0) / totalAppointments)
         : 0,
     },
-    
+
     // Today's schedule
     todaySchedule: todaySchedule.map(apt => ({
       id: apt.id,
@@ -594,7 +594,7 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
       status: apt.status,
       price: apt.session.price,
     })),
-    
+
     // Recent clients
     recentClients: recentClients.map(apt => ({
       id: apt.client.id,
@@ -602,7 +602,7 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
       email: apt.client.email,
       lastAppointment: apt.createdAt,
     })),
-    
+
     // Clinician info
     clinician: clinicianInfo ? {
       name: `${clinicianInfo.user.firstName} ${clinicianInfo.user.lastName}`,
@@ -611,7 +611,7 @@ const getClinicianDashboard = async (clinicianId: string, filter: any) => {
       clinic: clinicianInfo.clinic.name,
       role: clinicianInfo.role,
     } : null,
-    
+
     dateRange,
   };
 };
@@ -625,7 +625,7 @@ const getQuickStats = async (clinicId: string) => {
   const today = new Date();
   const startOfToday = new Date(today.setHours(0, 0, 0, 0));
   const endOfToday = new Date(today.setHours(23, 59, 59, 999));
-  
+
   const [
     todayAppointments,
     upcomingAppointments,

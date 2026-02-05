@@ -3,7 +3,7 @@ import ApiError from "../utils/ApiError";
 import httpStatus from "http-status";
 import subscriptionService from "../modules/subscription/subscription.service";
 import prisma from "../configs/prisma";
-import { SubscriptionStatus } from "../../generated/prisma/client";
+import { SubscriptionStatus } from "@prisma/client";
 
 interface AuthenticatedRequest extends Request {
   user?: any;
@@ -15,7 +15,7 @@ const getClinicIdFromUser = async (userId: string): Promise<string | null> => {
     where: { ownerId: userId },
     select: { id: true }
   });
-  
+
   if (ownedClinic) {
     return ownedClinic.id;
   }
@@ -41,21 +41,21 @@ const requireActiveSubscription = async (req: AuthenticatedRequest, res: Respons
 
     // Get clinic ID from user context, params, or body
     let clinicId = req.user.clinicId || req.params.clinicId || req.body.clinicId;
-    
+
     // If no clinic ID in request, try to get it from user's associations
     if (!clinicId) {
       clinicId = await getClinicIdFromUser(req.user.id);
     }
-    
+
     if (!clinicId) {
       throw new ApiError(httpStatus.BAD_REQUEST, "No clinic association found");
     }
 
     const subscription = await subscriptionService.checkSubscriptionStatus(clinicId);
-    
+
     // Allow access for active, trialing subscriptions
-    if (subscription.status === SubscriptionStatus.active || 
-        subscription.status === SubscriptionStatus.trialing) {
+    if (subscription.status === SubscriptionStatus.active ||
+      subscription.status === SubscriptionStatus.trialing) {
       req.user.subscription = subscription;
       req.user.clinicId = clinicId;
       return next();
@@ -63,7 +63,7 @@ const requireActiveSubscription = async (req: AuthenticatedRequest, res: Respons
 
     // Block access for cancelled, inactive, or past_due subscriptions
     let message = "Your subscription is not active.";
-    
+
     switch (subscription.status) {
       case SubscriptionStatus.cancelled:
         message = "Your subscription has been cancelled. Please reactivate to continue.";

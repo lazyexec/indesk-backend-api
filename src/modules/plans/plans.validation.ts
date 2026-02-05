@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { PlanType } from "../../../generated/prisma/client";
+import { PlanType } from "@prisma/client";
 
 const initiatePurchase = {
   body: Joi.object().keys({

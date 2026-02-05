@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { IssueType, IssuePriority, IssueStatus } from "../../../generated/prisma/client";
+import { IssueType, IssuePriority, IssueStatus } from "@prisma/client";
 
 const createIssue = {
   body: Joi.object().keys({

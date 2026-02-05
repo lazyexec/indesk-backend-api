@@ -71,6 +71,14 @@ router.get(
   assessmentController.getAssessmentInstance
 );
 
+// AI-powered assessment generation
+router.post(
+  "/ai/generate",
+  auth("clinician_forms"),
+  validate(assessmentValidation.createAssessmentAi),
+  assessmentController.createAssessmentWithAi
+);
+
 // Public routes (for patients)
 router.get(
   "/token/:token",

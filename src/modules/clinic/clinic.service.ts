@@ -5,7 +5,7 @@ import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 import fs from "../../utils/fs";
 import env from "../../configs/env";
-import { Prisma } from "../../../generated/prisma/client";
+import { Prisma } from "@prisma/client";
 import subscriptionService from "../subscription/subscription.service";
 import crypto from "crypto";
 

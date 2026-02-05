@@ -2,7 +2,7 @@ import prisma from "../../configs/prisma";
 import {
   IntegrationType,
   IntegrationStatus,
-} from "../../../generated/prisma/client";
+} from "@prisma/client";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 

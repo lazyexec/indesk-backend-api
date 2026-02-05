@@ -7,7 +7,7 @@ import subscriptionService from "../subscription/subscription.service";
 import transactionService from "../transaction/transaction.service";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
-import { SubscriptionStatus } from "../../../generated/prisma/client";
+import { SubscriptionStatus } from "@prisma/client";
 
 const processWebHookStripe = async (event: any) => {
   switch (event.type) {

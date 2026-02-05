@@ -7,7 +7,7 @@ import stripeService from "../stripe/stripe.service";
 import ApiError from "../../utils/ApiError";
 import catchAsync from "../../utils/catchAsync";
 import response from "../../utils/response";
-import { PlanType, SubscriptionStatus } from "../../../generated/prisma/client";
+import { PlanType, SubscriptionStatus } from "@prisma/client";
 
 interface AuthenticatedRequest extends Request {
   user?: any; // Use any to avoid type conflicts with existing auth system

@@ -2,12 +2,12 @@ import prisma from "../../configs/prisma";
 import logger from "../../utils/logger";
 import subscriptionService from "./subscription.service";
 import planService from "./plan.service";
-import { SubscriptionStatus, PlanType } from "../../../generated/prisma/client";
+import { SubscriptionStatus, PlanType } from "@prisma/client";
 
 const processExpiredTrials = async () => {
   try {
     logger.info('🔄 Processing expired trials...');
-    
+
     // Find all trialing subscriptions where trial has expired
     const expiredTrials = await prisma.subscription.findMany({
       where: {
@@ -37,7 +37,7 @@ const processExpiredTrials = async () => {
 
     // Get the free plan to downgrade to
     const freePlan = await planService.getPlanByType(PlanType.free);
-    
+
     const results = [];
 
     for (const subscription of expiredTrials) {
@@ -92,10 +92,10 @@ const checkTrialEligibility = async (clinicId: string) => {
   try {
     // Check if clinic has ever had a trial
     const subscription = await subscriptionService.getSubscriptionByClinicId(clinicId);
-    
+
     // If they've never had trial dates, they're eligible
     const hasHadTrial = subscription.trialStart !== null || subscription.trialEnd !== null;
-    
+
     return {
       eligible: !hasHadTrial,
       reason: hasHadTrial ? 'Trial already used' : null,
@@ -111,7 +111,7 @@ const checkTrialEligibility = async (clinicId: string) => {
 const getTrialStatus = async (clinicId: string) => {
   try {
     const subscription = await subscriptionService.getSubscriptionByClinicId(clinicId);
-    
+
     if (subscription.status !== SubscriptionStatus.trialing) {
       return {
         isTrialing: false,
@@ -144,14 +144,14 @@ const startTrial = async (clinicId: string, durationDays: number = 14) => {
   try {
     // Check eligibility
     const eligibility = await checkTrialEligibility(clinicId);
-    
+
     if (!eligibility.eligible) {
       throw new Error(eligibility.reason || 'Not eligible for trial');
     }
 
     // Get professional plan
     const professionalPlan = await planService.getPlanByType(PlanType.professional);
-    
+
     // Calculate trial dates
     const trialStart = new Date();
     const trialEnd = new Date();

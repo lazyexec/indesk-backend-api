@@ -1,4 +1,4 @@
-import { SubscriptionStatus, PlanType } from "../../../generated/prisma/client";
+import { SubscriptionStatus, PlanType } from "@prisma/client";
 import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
@@ -159,7 +159,7 @@ const assignDefaultSubscription = async (clinicId: string) => {
   try {
     // Get the free plan
     const freePlan = await planService.getPlanByType(PlanType.free);
-    
+
     // Create subscription with free plan
     return await createSubscription({
       clinicId,
@@ -174,7 +174,7 @@ const assignDefaultSubscription = async (clinicId: string) => {
 
 const cancelSubscription = async (clinicId: string) => {
   const subscription = await getSubscriptionByClinicId(clinicId);
-  
+
   return await updateSubscription(subscription.id, {
     status: SubscriptionStatus.cancelled,
     cancelledAt: new Date(),
@@ -184,7 +184,7 @@ const cancelSubscription = async (clinicId: string) => {
 const checkSubscriptionStatus = async (clinicId: string) => {
   try {
     const subscription = await getSubscriptionByClinicId(clinicId);
-    
+
     // Check if trial has expired
     if (subscription.status === SubscriptionStatus.trialing && subscription.trialEnd) {
       if (new Date() > subscription.trialEnd) {
@@ -194,11 +194,11 @@ const checkSubscriptionStatus = async (clinicId: string) => {
           planId: freePlan.id,
           status: SubscriptionStatus.active,
         });
-        
+
         return await getSubscriptionById(subscription.id);
       }
     }
-    
+
     return subscription;
   } catch (error) {
     // If no subscription found, assign default

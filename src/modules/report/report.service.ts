@@ -1,5 +1,5 @@
 import prisma from "../../configs/prisma";
-import { PlanType, SubscriptionStatus } from "../../../generated/prisma/client";
+import { PlanType, SubscriptionStatus } from "@prisma/client";
 
 const getSubscriptionOverview = async () => {
   // Get subscription counts by status
@@ -112,7 +112,7 @@ const getClientUsageReport = async () => {
     const clientLimit = clinic.subscription?.plan.clientLimit || 0;
     const isUnlimited = clientLimit === 0;
     const usagePercentage = isUnlimited ? 0 : (clientCount / clientLimit) * 100;
-    
+
     return {
       clinicId: clinic.id,
       clinicName: clinic.name,
@@ -179,12 +179,12 @@ const getTrialReport = async () => {
   // Calculate trial statistics
   const now = new Date();
   const trialsWithStats = activeTrials.map(trial => {
-    const daysRemaining = trial.trialEnd ? 
+    const daysRemaining = trial.trialEnd ?
       Math.max(0, Math.ceil((trial.trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0;
     const totalTrialDays = trial.trialStart && trial.trialEnd ?
       Math.ceil((trial.trialEnd.getTime() - trial.trialStart.getTime()) / (1000 * 60 * 60 * 24)) : 14;
     const daysUsed = totalTrialDays - daysRemaining;
-    
+
     return {
       subscriptionId: trial.id,
       clinicId: trial.clinic.id,
@@ -222,7 +222,7 @@ const getTrialReport = async () => {
     }
   });
 
-  const conversionRate = totalTrialsStarted > 0 ? 
+  const conversionRate = totalTrialsStarted > 0 ?
     Math.round((trialConversions / totalTrialsStarted) * 100) : 0;
 
   return {
@@ -304,7 +304,7 @@ const getRevenueReport = async (startDate?: Date, endDate?: Date) => {
   const totalMRR = Object.values(mrrByPlan).reduce((sum, plan) => sum + plan.revenue, 0);
 
   // Get new subscriptions in period
-  const newSubscriptions = subscriptionChanges.filter(sub => 
+  const newSubscriptions = subscriptionChanges.filter(sub =>
     sub.createdAt >= start && sub.createdAt <= end
   ).length;
 
@@ -348,7 +348,7 @@ const getSystemHealthReport = async () => {
 
   // Get recent activity (last 7 days)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  
+
   const recentUsers = await prisma.user.count({
     where: { createdAt: { gte: sevenDaysAgo } }
   });

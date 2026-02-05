@@ -3,7 +3,7 @@ import httpStatus from "http-status";
 import ApiError from "../utils/ApiError";
 import logger from "../utils/logger";
 import type { Request, Response, NextFunction } from "express";
-import { Prisma } from "../../generated/prisma/client";
+import { Prisma } from "@prisma/client";
 
 const errorConverter = (
   err: any,

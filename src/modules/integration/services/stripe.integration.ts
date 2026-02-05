@@ -3,7 +3,7 @@ import {
   handleApiError,
   retryWithBackoff,
 } from "../integration.helper";
-import { IntegrationType } from "../../../../generated/prisma/client";
+import { IntegrationType } from "@prisma/client";
 import ApiError from "../../../utils/ApiError";
 import httpStatus from "http-status";
 import env from "../../../configs/env";
@@ -25,7 +25,7 @@ const getConnectedAccountId = async (clinicId: string): Promise<string | null> =
     },
   });
 
-  logger.info("Integration >>> ",integration)
+  logger.info("Integration >>> ", integration)
 
   // accountId is stored in the config JSON field
   const config = integration?.config as any;
@@ -115,7 +115,7 @@ const createCheckoutSession = async (
     // Get the clinic's connected Stripe account
     const accountId = await getConnectedAccountId(clinicId);
 
-    console.log("clinic account id" , accountId)
+    console.log("clinic account id", accountId)
     if (!accountId) {
       throw new ApiError(
         httpStatus.BAD_REQUEST,

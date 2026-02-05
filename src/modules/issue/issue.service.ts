@@ -1,7 +1,7 @@
 import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
-import { IssueType, IssuePriority, IssueStatus, UserIssue } from "../../../generated/prisma/client";
+import { IssueType, IssuePriority, IssueStatus, UserIssue } from "@prisma/client";
 
 interface CreateIssueData {
   title: string;
@@ -258,7 +258,7 @@ const updateIssue = async (
     if (data.adminResponse !== undefined) updateData.adminResponse = data.adminResponse;
     if (data.adminId !== undefined) updateData.adminId = data.adminId;
     if (data.priority !== undefined) updateData.priority = data.priority;
-    
+
     // Mark as resolved if admin provides response and status is not set
     if (data.adminResponse && !data.status) {
       updateData.status = IssueStatus.resolved;

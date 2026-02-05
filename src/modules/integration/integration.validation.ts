@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { IntegrationType } from "../../../generated/prisma/client";
+import { IntegrationType } from "@prisma/client";
 
 const connectIntegration = {
   body: Joi.object().keys({

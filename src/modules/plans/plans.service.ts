@@ -1,7 +1,7 @@
 import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
-import { PlanType } from "../../../generated/prisma/client";
+import { PlanType } from "@prisma/client";
 import stripeService from "../stripe/stripe.service";
 import subscriptionService from "../subscription/subscription.service";
 import planService from "../subscription/plan.service";

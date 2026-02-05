@@ -4,7 +4,7 @@ import httpStatus from "http-status";
 import bcrypt from "bcrypt";
 import email from "../../configs/email";
 import env from "../../configs/env";
-import { ClinicRole } from "../../../generated/prisma/client";
+import { ClinicRole } from "@prisma/client";
 import limitService from "../subscription/limit.service";
 
 const generateRandomPassword = (): string => {

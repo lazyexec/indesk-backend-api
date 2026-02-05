@@ -5,6 +5,7 @@ import AssessmentService from "./assessment.service";
 import response from "../../utils/response";
 import pick from "../../utils/pick";
 import clinicService from "../clinic/clinic.service";
+import createAssessmentAi from "./assessment.ai";
 
 // Template Controllers
 const createAssessmentTemplate = catchAsync(
@@ -233,6 +234,20 @@ const getAssessmentInstance = catchAsync(
   }
 );
 
+const createAssessmentWithAi = catchAsync(
+  async (req: Request, res: Response) => {
+    const { topic } = req.body;
+    const assessment = await createAssessmentAi(topic);
+    res.status(httpStatus.OK).json(
+      response({
+        status: httpStatus.OK,
+        message: "AI assessment generated successfully",
+        data: assessment,
+      })
+    );
+  }
+);
+
 export default {
   createAssessmentTemplate,
   getAssessmentTemplates,
@@ -245,4 +260,5 @@ export default {
   submitAssessment,
   getAssessmentInstances,
   getAssessmentInstance,
+  createAssessmentWithAi,
 };

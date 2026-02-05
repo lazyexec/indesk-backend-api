@@ -1,4 +1,4 @@
-import { PlanType, SubscriptionStatus } from "../../../generated/prisma/client";
+import { PlanType, SubscriptionStatus } from "@prisma/client";
 
 export interface SubscriptionOverview {
   totalClinics: number;
@@ -134,7 +134,7 @@ export interface DashboardSummary {
   activeSubscriptions: number;
   totalMRR: number;
   totalClients: number;
-  
+
   // Growth indicators
   recentActivity: {
     newUsers: number;
@@ -142,15 +142,15 @@ export interface DashboardSummary {
     newClients: number;
     newAppointments: number;
   };
-  
+
   // Attention needed
   trialsExpiringSoon: number;
   clinicsAtLimit: number;
   pastDueSubscriptions: number;
-  
+
   // Conversion metrics
   trialConversionRate: number;
-  
+
   // Plan distribution
   subscriptionsByPlan: Array<{
     planId: string;
@@ -159,7 +159,7 @@ export interface DashboardSummary {
     planPrice: number;
     count: number;
   }>;
-  
+
   // Health indicators
   healthScore: number;
 }

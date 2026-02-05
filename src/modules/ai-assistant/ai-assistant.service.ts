@@ -70,7 +70,7 @@ const chat = async (userId: string, clinicId: string, chatRequest: ChatRequest) 
     ];
 
     const response = await aiClient.generateText({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         messages,
     });
 
@@ -153,7 +153,7 @@ const draftEmail = async (userId: string, clinicId: string, emailRequest: DraftE
     const prompt = `${purposePrompts[purpose]}\n\nContext:\n${emailContext}\n\nTone: ${tone}\n\nProvide a complete email with subject line and body. Make it warm, professional, and personalized.`;
 
     const response = await aiClient.generateText({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         messages: [
             {
                 role: "system",
@@ -244,7 +244,7 @@ const summarizeSchedule = async (userId: string, clinicId: string, request: Summ
     const prompt = `Summarize this day's schedule in a helpful, concise way. Highlight any back-to-back sessions, breaks, and provide time management tips if needed.\n\nSchedule:\n${scheduleContext}`;
 
     const response = await aiClient.generateText({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         messages: [
             {
                 role: "system",
@@ -318,7 +318,7 @@ const createInvoice = async (userId: string, clinicId: string, invoiceRequest: C
     const prompt = `Generate a professional invoice description and notes for the following items:\n\n${itemsList}\n\nTotal: $${totalAmount}\n\nClient: ${client.firstName} ${client.lastName}\n\nProvide a brief, professional description suitable for an invoice.`;
 
     const response = await aiClient.generateText({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         messages: [
             {
                 role: "system",

@@ -1,7 +1,7 @@
 import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
-import { InvoiceStatus, Prisma } from "../../../generated/prisma/client";
+import { InvoiceStatus, Prisma } from "@prisma/client";
 import logger from "../../utils/logger";
 import crypto from "crypto";
 import env from "../../configs/env";

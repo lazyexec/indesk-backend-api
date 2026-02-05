@@ -3,7 +3,7 @@ import {
   IntegrationType,
   IntegrationStatus,
   Prisma,
-} from "../../../generated/prisma/client";
+} from "@prisma/client";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
 import {

@@ -1,4 +1,4 @@
-import { PlanType } from "../../../generated/prisma/client";
+import { PlanType } from "@prisma/client";
 import prisma from "../../configs/prisma";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";

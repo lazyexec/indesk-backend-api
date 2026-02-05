@@ -1,4 +1,4 @@
-import { PlanType } from "../../../generated/prisma/client";
+import { PlanType } from "@prisma/client";
 import planService from "./plan.service";
 
 const seedDefaultPlans = async () => {

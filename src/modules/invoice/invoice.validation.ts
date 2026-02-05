@@ -1,5 +1,5 @@
 import Joi from "joi";
-import { InvoiceStatus } from "../../../generated/prisma/client";
+import { InvoiceStatus } from "@prisma/client";
 
 const createInvoice = {
   body: Joi.object().keys({

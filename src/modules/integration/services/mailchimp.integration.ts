@@ -4,7 +4,7 @@ import {
   handleApiError,
   retryWithBackoff,
 } from "../integration.helper";
-import { IntegrationType } from "../../../../generated/prisma/client";
+import { IntegrationType } from "@prisma/client";
 import ApiError from "../../../utils/ApiError";
 import httpStatus from "http-status";
 
