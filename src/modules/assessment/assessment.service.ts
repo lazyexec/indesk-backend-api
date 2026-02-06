@@ -105,15 +105,21 @@ const getAssessmentTemplates = async (
     );
   }
 
-  const { limit = 10, page = 1, sort = { createdAt: "desc" } } = options;
+  const { limit = 10, page = 1, sort = { createdAt: "desc" }, category } = options;
   const skip = (Number(page) - 1) * Number(limit);
   const take = Number(limit);
 
+  const where: any = {
+    clinicId,
+  };
+
+  if (category) {
+    where.category = category;
+  }
+
   const [templates, totalDocs] = await Promise.all([
     prisma.assessmentTemplate.findMany({
-      where: {
-        clinicId,
-      },
+      where,
       take,
       skip,
       orderBy: sort,
@@ -139,9 +145,7 @@ const getAssessmentTemplates = async (
       },
     }),
     prisma.assessmentTemplate.count({
-      where: {
-        clinicId,
-      },
+      where,
     }),
   ]);
 
@@ -575,7 +579,7 @@ const submitAssessment = async (
     }
 
     maxScore += question.points;
-    
+
     // Give points for any answer (completion-based scoring)
     const pointsEarned = question.points;
     totalScore += pointsEarned;
@@ -820,6 +824,164 @@ const getAssessmentInstanceById = async (
   return instance;
 };
 
+// Submit Assessment by Clinician (authenticated route)
+const submitAssessmentByClinician = async (
+  userId: string,
+  instanceId: string,
+  responses: Array<{ questionId: string; answer: string }>
+) => {
+  const instance = await prisma.assessmentInstance.findUnique({
+    where: { id: instanceId },
+    include: {
+      template: {
+        include: {
+          questions: true,
+          clinic: true,
+        },
+      },
+      responses: true,
+    },
+  });
+
+  if (!instance) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Assessment instance not found");
+  }
+
+  // Verify clinician has access to this clinic
+  const clinicMember = await prisma.clinicMember.findFirst({
+    where: {
+      userId,
+      clinicId: instance.template.clinicId,
+    },
+  });
+
+  if (!clinicMember) {
+    throw new ApiError(
+      httpStatus.FORBIDDEN,
+      "You don't have access to this assessment"
+    );
+  }
+
+  if (instance.status === "completed") {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Assessment has already been completed"
+    );
+  }
+
+  // Get all questions from template
+  const questions = instance.template.questions;
+  const questionMap = new Map(questions.map((q) => [q.id, q]));
+
+  // Validate all questions are answered
+  if (responses.length !== questions.length) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "All questions must be answered"
+    );
+  }
+
+  // Calculate score
+  let totalScore = 0;
+  let maxScore = 0;
+  const responsesToCreate: Array<{
+    instanceId: string;
+    questionId: string;
+    answer: string;
+    isCorrect: boolean | null;
+    points: number;
+  }> = [];
+
+  for (const response of responses) {
+    const question = questionMap.get(response.questionId);
+    if (!question) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `Question ${response.questionId} not found`
+      );
+    }
+
+    maxScore += question.points;
+
+    // Give points for any answer (completion-based scoring)
+    const pointsEarned = question.points;
+    totalScore += pointsEarned;
+
+    responsesToCreate.push({
+      instanceId: instance.id,
+      questionId: response.questionId,
+      answer: response.answer,
+      isCorrect: null,
+      points: pointsEarned,
+    });
+  }
+
+  // Update instance and create responses in a transaction
+  const updatedInstance = await prisma.$transaction(async (tx) => {
+    // Delete existing responses if any
+    await tx.assessmentResponse.deleteMany({
+      where: { instanceId: instance.id },
+    });
+
+    // Create new responses
+    await tx.assessmentResponse.createMany({
+      data: responsesToCreate,
+    });
+
+    // Update instance - mark as completed by clinician
+    const updated = await tx.assessmentInstance.update({
+      where: { id: instance.id },
+      data: {
+        status: "completed",
+        score: totalScore,
+        maxScore: maxScore,
+        completedAt: new Date(),
+        clinicianId: clinicMember.id,
+      },
+      include: {
+        template: {
+          include: {
+            questions: {
+              orderBy: {
+                order: "asc",
+              },
+            },
+          },
+        },
+        responses: {
+          include: {
+            question: true,
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        clinician: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return updated;
+  });
+
+  return updatedInstance;
+};
+
 export default {
   createAssessmentTemplate,
   getAssessmentTemplates,
@@ -832,4 +994,5 @@ export default {
   submitAssessment,
   getAssessmentInstances,
   getAssessmentInstanceById,
+  submitAssessmentByClinician,
 };

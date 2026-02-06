@@ -71,6 +71,14 @@ router.get(
   assessmentController.getAssessmentInstance
 );
 
+// Clinician completes assessment on behalf of client
+router.post(
+  "/instance/:instanceId/complete",
+  auth("clinician_forms"),
+  validate(assessmentValidation.submitAssessmentByClinician),
+  assessmentController.submitAssessmentByClinician
+);
+
 // AI-powered assessment generation
 router.post(
   "/ai/generate",

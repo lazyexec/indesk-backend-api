@@ -66,6 +66,14 @@ enum IntegrationStatus {
 enum QuestionType {
   text
   multiple_choice
+  yes_no
+}
+
+enum AssessmentCategory {
+  general_clinical
+  mental_health
+  physical_therapy
+  neurology
 }
 
 enum AssessmentStatus {
@@ -367,6 +375,7 @@ model AssessmentTemplate {
   createdByUser User                 @relation(fields: [createdBy], references: [id], onDelete: Restrict)
   title         String
   description   String?
+  category      AssessmentCategory   @default(general_clinical)
   isActive      Boolean              @default(true)
   questions     AssessmentQuestion[]
   instances     AssessmentInstance[]
@@ -375,6 +384,7 @@ model AssessmentTemplate {
 
   @@index([clinicId])
   @@index([createdBy])
+  @@index([category])
 }
 
 model AssessmentQuestion {

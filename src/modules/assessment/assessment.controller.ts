@@ -51,12 +51,12 @@ const getAssessmentTemplates = catchAsync(
       );
     }
 
-    const filter = pick(req.query, []);
+    const filter = pick(req.query, ["category"]);
     const options = pick(req.query, ["limit", "page", "sort"]);
     const result = await AssessmentService.getAssessmentTemplates(
       userId,
       clinicId,
-      options
+      { ...filter, ...options }
     );
     res.status(httpStatus.OK).json(
       response({
@@ -248,6 +248,28 @@ const createAssessmentWithAi = catchAsync(
   }
 );
 
+const submitAssessmentByClinician = catchAsync(
+  async (req: Request, res: Response) => {
+    const userId: string = req.user?.id!;
+    const { instanceId } = req.params;
+    const { responses } = req.body;
+
+    const assessment = await AssessmentService.submitAssessmentByClinician(
+      userId,
+      instanceId,
+      responses
+    );
+
+    res.status(httpStatus.OK).json(
+      response({
+        status: httpStatus.OK,
+        message: "Assessment completed successfully by clinician",
+        data: assessment,
+      })
+    );
+  }
+);
+
 export default {
   createAssessmentTemplate,
   getAssessmentTemplates,
@@ -261,4 +283,5 @@ export default {
   getAssessmentInstances,
   getAssessmentInstance,
   createAssessmentWithAi,
+  submitAssessmentByClinician,
 };

@@ -2,14 +2,14 @@ import Joi from "joi";
 
 const assessmentQuestion = Joi.object().keys({
   question: Joi.string().required(),
-  type: Joi.string().valid("text", "multiple_choice").required(),
+  type: Joi.string().valid("text", "multiple_choice", "yes_no").required(),
   options: Joi.array().items(Joi.string()).when("type", {
     is: "multiple_choice",
     then: Joi.required(),
     otherwise: Joi.optional(),
   }),
   correctAnswer: Joi.string().when("type", {
-    is: "multiple_choice",
+    is: Joi.valid("multiple_choice", "yes_no"),
     then: Joi.optional(),
     otherwise: Joi.optional(),
   }),
@@ -21,12 +21,19 @@ const createAssessmentTemplate = {
   body: Joi.object().keys({
     title: Joi.string().required(),
     description: Joi.string().optional(),
+    category: Joi.string()
+      .valid("general_clinical", "mental_health", "physical_therapy", "neurology")
+      .optional()
+      .default("general_clinical"),
     questions: Joi.array().items(assessmentQuestion).min(1).required(),
   }),
 };
 
 const getAssessmentTemplates = {
   query: Joi.object().keys({
+    category: Joi.string()
+      .valid("general_clinical", "mental_health", "physical_therapy", "neurology")
+      .optional(),
     limit: Joi.number().integer().optional(),
     page: Joi.number().integer().optional(),
     sort: Joi.string().optional(),
@@ -47,6 +54,9 @@ const updateAssessmentTemplate = {
     .keys({
       title: Joi.string().optional(),
       description: Joi.string().optional(),
+      category: Joi.string()
+        .valid("general_clinical", "mental_health", "physical_therapy", "neurology")
+        .optional(),
       isActive: Joi.boolean().optional(),
       questions: Joi.array().items(assessmentQuestion).optional(),
     })
@@ -129,6 +139,23 @@ const createAssessmentAi = {
   }),
 };
 
+const submitAssessmentByClinician = {
+  params: Joi.object().keys({
+    instanceId: Joi.string().uuid().required(),
+  }),
+  body: Joi.object().keys({
+    responses: Joi.array()
+      .items(
+        Joi.object().keys({
+          questionId: Joi.string().uuid().required(),
+          answer: Joi.string().required(),
+        }),
+      )
+      .min(1)
+      .required(),
+  }),
+};
+
 export default {
   createAssessmentTemplate,
   getAssessmentTemplates,
@@ -142,4 +169,5 @@ export default {
   getAssessmentInstances,
   getAssessmentInstance,
   createAssessmentAi,
+  submitAssessmentByClinician,
 };
