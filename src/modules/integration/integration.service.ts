@@ -51,7 +51,6 @@ const getIntegrations = async (clinicId: string) => {
         icon: metadata.icon,
         category: metadata.category,
         status: existing?.status || IntegrationStatus.disconnected,
-        config: existing?.config || null,
         isConfigured: existing?.isConfigured || false,
         requiresOAuth: metadata.requiresOAuth,
         oauthUrl: metadata.oauthUrl || null,
@@ -356,7 +355,7 @@ const handleOAuthCallback = async (
   }
 
   // Store tokens in config and connect integration
-  const config = {
+  const integrationConfig = {
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token || null,
     expiresAt: tokens.expires_in
@@ -379,20 +378,23 @@ const handleOAuthCallback = async (
     },
     update: {
       status: IntegrationStatus.connected,
-      config,
+      config: integrationConfig,
     },
     create: {
       clinicId,
       type,
       status: IntegrationStatus.connected,
-      config,
+      config: integrationConfig,
     },
   });
 
   const metadata = getIntegrationMetadata(type);
 
+  // Remove sensitive config data from response
+  const { config: _, ...integrationWithoutConfig } = integration;
+
   return {
-    ...integration,
+    ...integrationWithoutConfig,
     name: metadata.name,
     description: metadata.description,
     icon: metadata.icon,
@@ -524,13 +526,13 @@ const checkIntegrationHealth = async (clinicId: string, type: IntegrationType) =
  * Update integration configuration
  * @param {string} clinicId
  * @param {IntegrationType} type
- * @param {any} config
+ * @param {any} configData
  * @returns {Promise<any>}
  */
 const updateIntegrationConfig = async (
   clinicId: string,
   type: IntegrationType,
-  config: any
+  configData: any
 ) => {
   // Update integration
   const integration = await prisma.integration.upsert({
@@ -541,7 +543,7 @@ const updateIntegrationConfig = async (
       },
     },
     update: {
-      config,
+      config: configData,
       isConfigured: true,
       updatedAt: new Date(),
     },
@@ -549,15 +551,18 @@ const updateIntegrationConfig = async (
       clinicId,
       type,
       status: IntegrationStatus.disconnected,
-      config,
+      config: configData,
       isConfigured: true,
     },
   });
 
   const metadata = getIntegrationMetadata(type);
 
+  // Remove sensitive config data from response
+  const { config: _, ...integrationWithoutConfig } = integration;
+
   return {
-    ...integration,
+    ...integrationWithoutConfig,
     name: metadata.name,
     description: metadata.description,
     icon: metadata.icon,
@@ -602,8 +607,11 @@ const disconnectIntegration = async (clinicId: string, type: IntegrationType) =>
 
   const metadata = getIntegrationMetadata(type);
 
+  // Remove sensitive config data from response (already cleared in DB)
+  const { config: _, ...integrationWithoutConfig } = updatedIntegration;
+
   return {
-    ...updatedIntegration,
+    ...integrationWithoutConfig,
     name: metadata.name,
     description: metadata.description,
     icon: metadata.icon,
