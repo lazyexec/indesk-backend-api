@@ -123,9 +123,11 @@ const deleteAssessmentTemplate = catchAsync(
 const createAssessmentInstance = catchAsync(
   async (req: Request, res: Response) => {
     const userId: string = req.user?.id!;
+    const files: any = req.files;
+
     const instance = await AssessmentService.createAssessmentInstance(
       userId,
-      req.body
+      { ...req.body, files }
     );
     res.status(httpStatus.CREATED).json(
       response({

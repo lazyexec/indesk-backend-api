@@ -34,6 +34,10 @@ const contentTypes = [
 
 const documentTypes = [
   "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "image/jpeg",
   "image/png",
   "image/jpg",
@@ -44,5 +48,6 @@ const documentTypes = [
 const allowedTypes: AllowedTypes = {
   avatar: avatarTypes,
   logo: avatarTypes,
+  document: documentTypes,
 };
 export default allowedTypes;

@@ -44,7 +44,7 @@ const createAssessmentTemplate = async (
     );
   }
 
-  const { title, description, questions } = templateData;
+  const { title, description, category, questions } = templateData;
 
   // Create template with questions
   const template = await prisma.assessmentTemplate.create({
@@ -53,6 +53,7 @@ const createAssessmentTemplate = async (
       createdBy: userId,
       title,
       description,
+      category,
       questions: {
         create: questions.map((q, index) => ({
           question: q.question,
@@ -292,9 +293,15 @@ const deleteAssessmentTemplate = async (userId: string, templateId: string) => {
 // Create Assessment Instance (Assign to patient)
 const createAssessmentInstance = async (
   userId: string,
-  instanceData: ICreateAssessmentInstance
+  instanceData: ICreateAssessmentInstance & { files?: any }
 ) => {
-  const { templateId, clientId, clinicianId } = instanceData;
+  const { templateId, clientId, clinicianId, document, note, files } = instanceData;
+
+  // Handle file upload - if file is uploaded, use its path, otherwise use document from body
+  let documentPath: string | undefined = document;
+  if (files && files.document && files.document[0]) {
+    documentPath = `/public/uploads/assessments/${files.document[0].filename}`;
+  }
 
   // Verify template exists
   const template = await prisma.assessmentTemplate.findUnique({
@@ -370,6 +377,8 @@ const createAssessmentInstance = async (
       clinicianId: clinicianId || null,
       assignedBy: userId,
       shareToken,
+      document: documentPath,
+      note,
       status: "pending",
     },
     include: {

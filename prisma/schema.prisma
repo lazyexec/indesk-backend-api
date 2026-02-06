@@ -376,6 +376,8 @@ model AssessmentTemplate {
   title         String
   description   String?
   category      AssessmentCategory   @default(general_clinical)
+  document      String? // Optional document URL/path
+  note          String? // Optional note/instructions
   isActive      Boolean              @default(true)
   questions     AssessmentQuestion[]
   instances     AssessmentInstance[]
@@ -416,6 +418,8 @@ model AssessmentInstance {
   assignedByUser User                 @relation(fields: [assignedBy], references: [id], onDelete: Restrict)
   status         AssessmentStatus     @default(pending)
   shareToken     String               @unique // Token for email sharing
+  document       String? // Optional document URL/path
+  note           String? // Optional note/instructions
   score          Float? // Calculated score
   maxScore       Float? // Maximum possible score
   completedAt    DateTime?

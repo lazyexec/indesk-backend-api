@@ -3,8 +3,12 @@ import assessmentController from "./assessment.controller";
 import validate from "../../middlewares/validate";
 import assessmentValidation from "./assessment.validation";
 import auth from "../../middlewares/auth";
+import fileUploader from "../../middlewares/fileUploader";
 
 const router: Router = express.Router();
+const uploadAssessment = fileUploader("public/uploads/assessments").fields([
+  { name: "document", maxCount: 1 },
+]);
 
 // Template Routes (Admin only)
 router.post(
@@ -46,6 +50,7 @@ router.delete(
 router.post(
   "/instance",
   auth("clinician_forms"),
+  uploadAssessment,
   validate(assessmentValidation.createAssessmentInstance),
   assessmentController.createAssessmentInstance
 );

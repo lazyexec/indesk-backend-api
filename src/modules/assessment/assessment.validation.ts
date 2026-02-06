@@ -74,6 +74,8 @@ const createAssessmentInstance = {
     templateId: Joi.string().uuid().required(),
     clientId: Joi.string().uuid().required(),
     clinicianId: Joi.string().uuid().optional(),
+    documentUrl: Joi.string().uri().optional(), // For direct URL
+    note: Joi.string().max(1000).optional(),
   }),
 };
 
