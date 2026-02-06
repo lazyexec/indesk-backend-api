@@ -10,6 +10,7 @@ import httpStatus from "http-status";
 import { randomBytes } from "crypto";
 import env from "../../configs/env";
 import emailService from "../../configs/email";
+import fs from "../../utils/fs";
 
 // Generate unique share token
 const generateShareToken = (): string => {
@@ -300,7 +301,8 @@ const createAssessmentInstance = async (
   // Handle file upload - if file is uploaded, use its path, otherwise use document from body
   let documentPath: string | undefined = document;
   if (files && files.document && files.document[0]) {
-    documentPath = `/public/uploads/assessments/${files.document[0].filename}`;
+    const file = files.document[0];
+    documentPath = env.BACKEND_URL + "/public" + fs.sanitizePath(file.path);
   }
 
   // Verify template exists
