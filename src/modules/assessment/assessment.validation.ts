@@ -129,6 +129,20 @@ const getAssessmentInstances = {
   }),
 };
 
+const getAssessmentInstancesByClientId = {
+  params: Joi.object().keys({
+    clientId: Joi.string().uuid().required(),
+  }),
+  query: Joi.object().keys({
+    status: Joi.string()
+      .valid("pending", "in_progress", "completed")
+      .optional(),
+    limit: Joi.number().integer().optional(),
+    page: Joi.number().integer().optional(),
+    sort: Joi.string().optional(),
+  }),
+};
+
 const getAssessmentInstance = {
   params: Joi.object().keys({
     instanceId: Joi.string().uuid().required(),
@@ -169,6 +183,7 @@ export default {
   getAssessmentByToken,
   submitAssessment,
   getAssessmentInstances,
+  getAssessmentInstancesByClientId,
   getAssessmentInstance,
   createAssessmentAi,
   submitAssessmentByClinician,

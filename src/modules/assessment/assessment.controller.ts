@@ -219,6 +219,39 @@ const getAssessmentInstances = catchAsync(
   }
 );
 
+const getAssessmentInstancesByClientId = catchAsync(
+  async (req: Request, res: Response) => {
+    const userId: string = req.user?.id!;
+    const clinicId = await clinicService.getClinicIdByUserId(userId);
+
+    if (!clinicId) {
+      return res.status(httpStatus.BAD_REQUEST).json(
+        response({
+          status: httpStatus.BAD_REQUEST,
+          message: "User is not associated with a clinic",
+        })
+      );
+    }
+
+    const options = pick(req.query, ["limit", "page", "sort", "status"]);
+    const result = await AssessmentService.getAssessmentInstances(
+      userId,
+      clinicId,
+      {
+        ...options,
+        clientId: req.params.clientId,
+      }
+    );
+    res.status(httpStatus.OK).json(
+      response({
+        status: httpStatus.OK,
+        message: "Assessment instances retrieved successfully",
+        data: result,
+      })
+    );
+  }
+);
+
 const getAssessmentInstance = catchAsync(
   async (req: Request, res: Response) => {
     const userId: string = req.user?.id!;
@@ -283,6 +316,7 @@ export default {
   getAssessmentByToken,
   submitAssessment,
   getAssessmentInstances,
+  getAssessmentInstancesByClientId,
   getAssessmentInstance,
   createAssessmentWithAi,
   submitAssessmentByClinician,
