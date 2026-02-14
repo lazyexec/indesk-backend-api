@@ -21,7 +21,7 @@ if (!env.DEBUG) {
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 200,
+      max: 500,
     }),
   );
 }
@@ -57,7 +57,7 @@ app.use("/api/v1", v1Router);
 
 app.use(errorConverter);
 app.use(errorHandler);
-app.get("/health", (req, res) => {
-  res.send("Api is Healthy");
+app.get("/", (_, res) => {
+  res.sendFile(path.join(__dirname, "./docs/index.html"));
 });
 export default app;

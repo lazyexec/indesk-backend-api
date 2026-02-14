@@ -22,6 +22,7 @@ export interface IUser {
   isOnline?: boolean;
   lastSeen?: Date | null;
   lastLoginAt?: Date | null;
+  lastPasswordChangedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

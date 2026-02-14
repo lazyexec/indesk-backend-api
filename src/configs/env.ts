@@ -7,6 +7,7 @@ configDotenv();
 
 const validator = Joi.object()
   .keys({
+    APP_NAME: Joi.string().default("Indesk Backend API"),
     PORT: Joi.number().default(3000),
     BACKEND_IP: Joi.string().default("localhost"),
     SOCKET_PORT: Joi.number().default(3001), // This is for only testing purpose (Development)
@@ -33,6 +34,9 @@ const validator = Joi.object()
     STRIPE_WEBHOOK_SECRET: Joi.string()
       .required()
       .description("Stripe Webhook Secret Key"),
+    STRIPE_CONNECT_CLIENT_ID: Joi.string()
+      .optional()
+      .description("Stripe Connect OAuth Client ID"),
     // URLS
     FRONTEND_URL: Joi.string().default("*").description("Frontend URL"),
     BACKEND_URL: Joi.string()
@@ -68,17 +72,20 @@ const validator = Joi.object()
     MAILCHIMP_SERVER_PREFIX: Joi.string()
       .optional()
       .description("Mailchimp Server Prefix"),
-    // Stripe Connect OAuth
-    STRIPE_CONNECT_CLIENT_ID: Joi.string()
-      .required()
-      .description("Stripe Connect Client ID"),
-    // Mailchimp OAuth
+    // Mailchimp Integration (OAuth only)
     MAILCHIMP_CLIENT_ID: Joi.string()
       .optional()
       .description("Mailchimp OAuth Client ID"),
     MAILCHIMP_CLIENT_SECRET: Joi.string()
       .optional()
       .description("Mailchimp OAuth Client Secret"),
+    // Twilio Integration (OAuth only)
+    TWILIO_CLIENT_ID: Joi.string()
+      .optional()
+      .description("Twilio OAuth Client ID"),
+    TWILIO_CLIENT_SECRET: Joi.string()
+      .optional()
+      .description("Twilio OAuth Client Secret"),
     // AI API Keys
     GEMINI_API_KEY: Joi.string()
       .optional()
@@ -91,6 +98,7 @@ const { value, error } = validator.validate(process.env);
 if (error) throw new Error(error.message);
 
 const env = {
+  APP_NAME: value.APP_NAME,
   PORT: value.PORT,
   BACKEND_IP: value.BACKEND_IP,
   SOCKET_PORT: value.SOCKET_PORT,
@@ -140,19 +148,21 @@ const env = {
     redirectUri: value.XERO_REDIRECT_URI,
   },
   mailchimp: {
-    apiKey: value.MAILCHIMP_API_KEY,
-    serverPrefix: value.MAILCHIMP_SERVER_PREFIX,
     oauth: {
       clientId: value.MAILCHIMP_CLIENT_ID,
       clientSecret: value.MAILCHIMP_CLIENT_SECRET,
     },
   },
+  twilio: {
+    oauth: {
+      clientId: value.TWILIO_CLIENT_ID,
+      clientSecret: value.TWILIO_CLIENT_SECRET,
+    },
+  },
   stripe: {
     secretKey: value.STRIPE_SECRET_KEY,
     webhookSecret: value.STRIPE_WEBHOOK_SECRET,
-  },
-  stripeConnect: {
-    clientId: value.STRIPE_CONNECT_CLIENT_ID,
+    connectClientId: value.STRIPE_CONNECT_CLIENT_ID,
   },
   google: {
     clientId: value.GOOGLE_CLIENT_ID,

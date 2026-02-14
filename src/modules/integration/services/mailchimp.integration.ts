@@ -315,6 +315,113 @@ const isMailchimpConnected = async (clinicId: string): Promise<boolean> => {
   }
 };
 
+/**
+ * Send appointment reminder email
+ */
+const sendAppointmentReminderEmail = async (
+  clinicId: string,
+  data: {
+    to: string;
+    clientName: string;
+    sessionName: string;
+    startTime: Date;
+    clinicName: string;
+    meetingUrl?: string;
+  }
+): Promise<{ success: boolean; messageId?: string }> => {
+  const { to, clientName, sessionName, startTime, clinicName, meetingUrl } =
+    data;
+
+  const formattedDate = startTime.toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const formattedTime = startTime.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const meetingInfo = meetingUrl
+    ? `<p><strong>Meeting Link:</strong> <a href="${meetingUrl}">${meetingUrl}</a></p>`
+    : `<p><strong>Location:</strong> In-person appointment</p>`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .details { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #4CAF50; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        .button { display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Appointment Reminder</h1>
+        </div>
+        <div class="content">
+          <p>Hi ${clientName},</p>
+          <p>This is a friendly reminder about your upcoming appointment:</p>
+          
+          <div class="details">
+            <p><strong>Service:</strong> ${sessionName}</p>
+            <p><strong>Clinic:</strong> ${clinicName}</p>
+            <p><strong>Date:</strong> ${formattedDate}</p>
+            <p><strong>Time:</strong> ${formattedTime}</p>
+            ${meetingInfo}
+          </div>
+          
+          <p>We look forward to seeing you!</p>
+          
+          ${meetingUrl
+      ? `<a href="${meetingUrl}" class="button">Join Meeting</a>`
+      : ""
+    }
+        </div>
+        <div class="footer">
+          <p>This is an automated reminder from ${clinicName}</p>
+          <p>If you need to reschedule or cancel, please contact us.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+Hi ${clientName},
+
+This is a friendly reminder about your upcoming appointment:
+
+Service: ${sessionName}
+Clinic: ${clinicName}
+Date: ${formattedDate}
+Time: ${formattedTime}
+${meetingUrl ? `Meeting Link: ${meetingUrl}` : "Location: In-person appointment"}
+
+We look forward to seeing you!
+
+---
+This is an automated reminder from ${clinicName}
+If you need to reschedule or cancel, please contact us.
+  `;
+
+  return sendTransactionalEmail(clinicId, {
+    to,
+    subject: `Reminder: Your ${sessionName} appointment at ${clinicName}`,
+    html,
+    text,
+    fromName: clinicName,
+  });
+};
+
 export default {
   addOrUpdateContact,
   removeContact,
@@ -322,5 +429,6 @@ export default {
   getContact,
   createCampaign,
   sendTransactionalEmail,
+  sendAppointmentReminderEmail,
   isMailchimpConnected,
 };

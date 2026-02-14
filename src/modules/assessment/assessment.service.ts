@@ -11,6 +11,9 @@ import { randomBytes } from "crypto";
 import env from "../../configs/env";
 import emailService from "../../configs/email";
 import fs from "../../utils/fs";
+import notificationService from "../notification/notification.service";
+import { getNotificationTemplate } from "../notification/notification.templates";
+import { getClientProgress } from "./assessment.progress";
 
 // Generate unique share token
 const generateShareToken = (): string => {
@@ -651,6 +654,42 @@ const submitAssessment = async (
     return updated;
   });
 
+  // Send notification to clinician if assessment was completed by client
+  if (!submittedByClinician && updatedInstance.clinicianId) {
+    try {
+      const clinician = await prisma.clinicMember.findUnique({
+        where: { id: updatedInstance.clinicianId },
+        select: { userId: true },
+      });
+
+      if (clinician) {
+        const template = getNotificationTemplate(
+          "assessment" as any,
+          "completed",
+          `${updatedInstance.client.firstName} ${updatedInstance.client.lastName}`,
+          updatedInstance.template.title
+        );
+
+        await notificationService.createNotification({
+          userId: clinician.userId,
+          title: template.title,
+          message: template.message,
+          type: "assessment" as any,
+          data: {
+            assessmentId: updatedInstance.id,
+            clientName: `${updatedInstance.client.firstName} ${updatedInstance.client.lastName}`,
+            assessmentTitle: updatedInstance.template.title,
+            score: updatedInstance.score,
+            maxScore: updatedInstance.maxScore,
+          },
+          sendPush: true,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send assessment completion notification:", error);
+    }
+  }
+
   return updatedInstance;
 };
 
@@ -1000,10 +1039,11 @@ export default {
   updateAssessmentTemplate,
   deleteAssessmentTemplate,
   createAssessmentInstance,
-  shareAssessmentViaEmail,
-  getAssessmentByToken,
-  submitAssessment,
   getAssessmentInstances,
   getAssessmentInstanceById,
+  getAssessmentByToken,
+  submitAssessment,
   submitAssessmentByClinician,
+  shareAssessmentViaEmail,
+  getClientProgress,
 };

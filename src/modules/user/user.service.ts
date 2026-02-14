@@ -5,11 +5,50 @@ import fs from "../../utils/fs";
 import env from "../../configs/env";
 import { IUser } from "./user.interface";
 import prisma from "../../configs/prisma";
+import userSelect from "./user.select";
+import all_permissions from "../../configs/permissions";
 
 interface UploadedFiles {
   avatar?: Express.Multer.File[];
   documents?: Express.Multer.File[];
 }
+
+const calculateUserPermissions = (user: any): Record<string, boolean> => {
+  if (user.clinicMemberships && user.clinicMemberships.length > 0) {
+    const membership = user.clinicMemberships[0];
+
+    if (membership.role === "superAdmin" || membership.role === "admin") {
+      return Object.keys(all_permissions).reduce((acc, key) => {
+        acc[key] = true;
+        return acc;
+      }, {} as Record<string, boolean>);
+    }
+
+    if (membership.role === "clinician") {
+      return (membership.clinic.permissions || {}) as Record<string, boolean>;
+    }
+  }
+
+  if (user.ownedClinics && user.ownedClinics.length > 0) {
+    return Object.keys(all_permissions).reduce((acc, key) => {
+      acc[key] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+  }
+
+  return Object.keys(all_permissions).reduce((acc, key) => {
+    acc[key] = false;
+    return acc;
+  }, {} as Record<string, boolean>);
+};
+
+const withPermissions = (user: any) => {
+  if (!user) return user;
+  return {
+    ...user,
+    permissions: calculateUserPermissions(user),
+  };
+};
 
 const getUserByEmail = async (email: string) => {
   return await prisma.user.findUnique({
@@ -45,13 +84,20 @@ const updateUser = async (
     data: data,
   });
 
-  return updatedUser as unknown as IUser;
+  const userWithDetails = await prisma.user.findUnique({
+    where: { id: updatedUser.id },
+    select: userSelect.getUserSelect,
+  });
+
+  return withPermissions(userWithDetails) as unknown as IUser;
 };
 
 const getUserById = async (userId: string) => {
-  return (await prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: userId },
-  })) as unknown as IUser;
+    select: userSelect.getUserSelect,
+  });
+  return withPermissions(user) as unknown as IUser;
 };
 
 const queryAllUsers = async (filter: any, options: object) => {
@@ -84,12 +130,13 @@ const queryAllUsers = async (filter: any, options: object) => {
       take,
       skip,
       orderBy: sort,
+      select: userSelect.getUserSelect,
     }),
     prisma.user.count({ where: query }),
   ]);
 
   return {
-    docs: users as unknown as IUser[],
+    docs: users.map(withPermissions) as unknown as IUser[],
     totalDocs,
     limit: take,
     page: Number(page),
@@ -158,6 +205,7 @@ const addUser = async ({
     email,
     role: role as string,
     password,
+    lastPasswordChangedAt: new Date(),
     isEmailVerified: true,
   };
 
@@ -171,7 +219,19 @@ const addUser = async ({
       env.BACKEND_URL + "/public" + fs.sanitizePath(file.path);
   }
 
-  return prisma.user.create({ data: userObject });
+  const createdUser = await prisma.user.create({
+    data: userObject,
+    select: {
+      id: true,
+    },
+  });
+
+  const userWithDetails = await prisma.user.findUnique({
+    where: { id: createdUser.id },
+    select: userSelect.getUserSelect,
+  });
+
+  return withPermissions(userWithDetails);
 };
 
 export default {

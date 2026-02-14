@@ -5,6 +5,8 @@ import { InvoiceStatus, Prisma } from "@prisma/client";
 import logger from "../../utils/logger";
 import crypto from "crypto";
 import env from "../../configs/env";
+import notificationService from "../notification/notification.service";
+import { getNotificationTemplate } from "../notification/notification.templates";
 
 /**
  * Create invoice
@@ -88,6 +90,33 @@ const createInvoice = async (clinicId: string, invoiceBody: any) => {
       },
     },
   });
+
+  // Send notification to client if they have a user account
+  try {
+    if (client.userId) {
+      const template = getNotificationTemplate(
+        "invoice" as any,
+        "created",
+        invoice.totalAmount
+      );
+
+      await notificationService.createNotification({
+        userId: client.userId,
+        title: template.title,
+        message: template.message,
+        type: "invoice" as any,
+        data: {
+          invoiceId: invoice.id,
+          amount: invoice.totalAmount,
+          dueDate: invoice.dueDate.toISOString(),
+          publicToken: invoice.publicToken,
+        },
+        sendPush: true,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to send invoice notification:", error);
+  }
 
   return invoice;
 };

@@ -9,6 +9,8 @@ import userService from "../user/user.service";
 import userSelect from "../user/user.select";
 import { IUser } from "../user/user.interface";
 import all_permissions from "../../configs/permissions";
+import notificationService from "../notification/notification.service";
+import { getNotificationTemplate } from "../notification/notification.templates";
 
 const calculateUserPermissions = (user: any): Record<string, boolean> => {
   // If user has clinic memberships, use the first one (primary clinic)
@@ -73,6 +75,7 @@ const register = async (userData: IUser) => {
     await restoreUser(emailTaken.id, {
       email,
       password: hashedPassword,
+      lastPasswordChangedAt: new Date(),
       isDeleted: false,
       isEmailVerified: false,
       oneTimeCode,
@@ -84,6 +87,7 @@ const register = async (userData: IUser) => {
     await createUser({
       email,
       password: hashedPassword,
+      lastPasswordChangedAt: new Date(),
       oneTimeCode,
       oneTimeCodeExpires,
       role,
@@ -130,6 +134,29 @@ const verifyAccount = async (email: string, code: string) => {
   if (updatedUser) {
     const permissions = calculateUserPermissions(updatedUser);
     const { clinicMemberships, ownedClinics, ...userWithoutClinicData } = updatedUser;
+
+    // Send welcome notification
+    try {
+      const template = getNotificationTemplate(
+        "system" as any,
+        "welcome",
+        `${updatedUser.firstName} ${updatedUser.lastName}`
+      );
+
+      await notificationService.createNotification({
+        userId: updatedUser.id,
+        title: template.title,
+        message: template.message,
+        type: "system" as any,
+        data: {
+          type: "welcome",
+        },
+        sendPush: false,
+      });
+    } catch (error) {
+      console.error("Failed to send welcome notification:", error);
+    }
+
     return {
       ...userWithoutClinicData,
       permissions,
@@ -214,10 +241,14 @@ const resetPassword = async (
     where: { id: user.id },
     data: {
       password: hashedPassword,
+      lastPasswordChangedAt: new Date(),
       isResetPassword: false,
       oneTimeCode: null,
       oneTimeCodeExpires: null,
     },
+  });
+  await prisma.token.deleteMany({
+    where: { userId: user.id, type: "refresh" },
   });
   return updatedUser;
 };
@@ -250,7 +281,13 @@ const changePassword = async (
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
-    data: { password: newHashedPassword },
+    data: {
+      password: newHashedPassword,
+      lastPasswordChangedAt: new Date(),
+    },
+  });
+  await prisma.token.deleteMany({
+    where: { userId, type: "refresh" },
   });
   return updatedUser;
 };

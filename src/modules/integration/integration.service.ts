@@ -108,19 +108,9 @@ const getOAuthUrl = async (clinicId: string, type: IntegrationType) => {
         zoomRedirectUri
       )}&state=${state}`;
 
-    case "xero":
-      // Xero OAuth URL
-      const xeroClientId = env.xero.clientId;
-      const xeroRedirectUri = `${env.BACKEND_URL}/api/v1/integration/oauth/callback/xero`;
-      return `https://login.xero.com/identity/connect/authorize?response_type=code&client_id=${xeroClientId}&redirect_uri=${encodeURIComponent(
-        xeroRedirectUri
-      )}&scope=${encodeURIComponent(
-        "accounting.transactions accounting.settings"
-      )}&state=${state}`;
-
     case "stripe":
       // Stripe Connect OAuth URL
-      const stripeClientId = env.stripeConnect.clientId;
+      const stripeClientId = env.stripe.connectClientId;
       if (!stripeClientId) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
@@ -238,44 +228,9 @@ const handleOAuthCallback = async (
       tokens = await zoomResponse.json();
       break;
 
-    case "xero":
-      // Exchange Xero OAuth code for tokens
-      if (!env.xero.clientId || !env.xero.clientSecret) {
-        throw new ApiError(
-          httpStatus.INTERNAL_SERVER_ERROR,
-          "Xero OAuth credentials not configured"
-        );
-      }
-      const xeroResponse = await fetch(
-        "https://identity.xero.com/connect/token",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Basic ${Buffer.from(
-              `${env.xero.clientId}:${env.xero.clientSecret}`
-            ).toString("base64")}`,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            redirect_uri: `${env.BACKEND_URL}/api/v1/integration/oauth/callback/xero`,
-          }),
-        }
-      );
-      if (!xeroResponse.ok) {
-        const error: any = await xeroResponse.json();
-        throw new ApiError(
-          httpStatus.BAD_REQUEST,
-          error.error_description || "Failed to exchange Xero OAuth code"
-        );
-      }
-      tokens = await xeroResponse.json();
-      break;
-
     case "stripe":
       // Exchange Stripe Connect OAuth code for tokens
-      if (!env.stripeConnect.clientId) {
+      if (!env.stripe.connectClientId) {
         throw new ApiError(
           httpStatus.INTERNAL_SERVER_ERROR,
           "Stripe Connect credentials not configured"
@@ -484,21 +439,6 @@ const checkIntegrationHealth = async (clinicId: string, type: IntegrationType) =
           if (!response.ok) {
             healthStatus = 'error';
             details.error = 'Failed to access Mailchimp API';
-          }
-        }
-        break;
-
-      case 'xero':
-        // Check Xero API access
-        if (config.accessToken) {
-          const response = await fetch('https://api.xero.com/api.xro/2.0/Organisation', {
-            headers: {
-              Authorization: `Bearer ${config.accessToken}`,
-            },
-          });
-          if (!response.ok) {
-            healthStatus = 'error';
-            details.error = 'Failed to access Xero API';
           }
         }
         break;

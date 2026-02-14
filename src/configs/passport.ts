@@ -20,6 +20,16 @@ const jwtVerify = async (payload: any, done: any) => {
     if (!user) {
       return done(null, false);
     }
+
+    // Reject access tokens issued before the latest password change.
+    if (
+      user.lastPasswordChangedAt &&
+      payload.iat &&
+      payload.iat * 1000 < user.lastPasswordChangedAt.getTime()
+    ) {
+      return done(null, false);
+    }
+
     done(null, user);
   } catch (error) {
     done(error, false);

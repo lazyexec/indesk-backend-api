@@ -172,6 +172,25 @@ const submitAssessmentByClinician = {
   }),
 };
 
+const getClientProgress = {
+  params: Joi.object().keys({
+    clientId: Joi.string().uuid().required(),
+  }),
+  query: Joi.object().keys({
+    templateId: Joi.string().uuid().optional(),
+    category: Joi.string()
+      .valid("general_clinical", "mental_health", "physical_therapy", "neurology")
+      .optional(),
+    startDate: Joi.date().iso().optional(),
+    endDate: Joi.date().iso().optional(),
+    frequency: Joi.string()
+      .valid("daily", "weekly", "monthly", "yearly")
+      .optional()
+      .default("monthly")
+      .description("Frequency for trend analysis: daily, weekly, monthly, or yearly"),
+  }),
+};
+
 export default {
   createAssessmentTemplate,
   getAssessmentTemplates,
@@ -179,12 +198,13 @@ export default {
   updateAssessmentTemplate,
   deleteAssessmentTemplate,
   createAssessmentInstance,
-  shareAssessmentViaEmail,
+  getAssessmentInstances,
+  getAssessmentInstance,
   getAssessmentByToken,
   submitAssessment,
-  getAssessmentInstances,
-  getAssessmentInstancesByClientId,
-  getAssessmentInstance,
-  createAssessmentAi,
   submitAssessmentByClinician,
+  shareAssessmentViaEmail,
+  getAssessmentInstancesByClientId,
+  createAssessmentAi,
+  getClientProgress,
 };

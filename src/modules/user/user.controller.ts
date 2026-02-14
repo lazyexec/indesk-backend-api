@@ -11,7 +11,9 @@ const getProfile = catchAsync(async (req: Request, res: Response) => {
   if (!userId) {
     throw new ApiError(httpStatus.UNAUTHORIZED, "Unauthorized");
   }
+
   const user = await userService.getUserById(userId);
+
   res.status(httpStatus.OK).json(
     response({
       status: httpStatus.OK,

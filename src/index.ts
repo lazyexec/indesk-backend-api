@@ -5,6 +5,8 @@ import logger from "./utils/logger";
 import env from "./configs/env";
 // import database from "./configs/database";
 import socketIO from "./utils/socket";
+import cron from "node-cron";
+import { sendAppointmentReminders } from "./modules/appointment/appointment.reminder";
 
 let server = http.createServer(app);
 const startServer = async () => {
@@ -43,6 +45,16 @@ const startServer = async () => {
         `API Server running on http://${env.BACKEND_IP}:${env.PORT}`
       );
     });
+
+    // Initialize appointment reminder cron job
+    // Runs every 15 minutes to check for upcoming appointments
+    cron.schedule("*/15 * * * *", () => {
+      logger.info("Running appointment reminder scheduler");
+      sendAppointmentReminders().catch((error) => {
+        logger.error("Appointment reminder scheduler error:", error);
+      });
+    });
+    logger.success("Appointment reminder scheduler initialized (runs every 15 minutes)");
   } catch (err) {
     logger.error("Failed to start server:", err);
     process.exit(1);

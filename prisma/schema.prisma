@@ -36,6 +36,7 @@ enum AppointmentStatus {
 enum MeetingType {
   in_person
   zoom
+  google_meet
 }
 
 enum Gender {
@@ -52,10 +53,11 @@ enum ClientStatus {
 
 enum IntegrationType {
   google_calendar
+  google_meet
   stripe
-  xero
   mailchimp
   zoom
+  twilio
 }
 
 enum IntegrationStatus {
@@ -127,6 +129,7 @@ model User {
   isOnline                   Boolean              @default(false)
   lastSeen                   DateTime?
   lastLoginAt                DateTime?            @default(now())
+  lastPasswordChangedAt      DateTime?
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime             @updatedAt
   // Relations
@@ -140,6 +143,7 @@ model User {
   reportedIssues             UserIssue[]
   adminResponses             UserIssue[]          @relation("AdminResponse")
   transactions               Transaction[]
+  notifications              Notification[]
 }
 
 model Token {
@@ -292,15 +296,18 @@ model Session {
   clinic   Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   name     String
 
-  duration     Int // in minutes
-  description  String?
-  price        Float
-  color        String?
-  reminders    Json? // e.g., [15, 30] minutes before
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  appointments Appointment[]
-  transactions Transaction[]
+  duration             Int // in minutes
+  description          String?
+  price                Float
+  color                String?
+  reminders            Json?         @default("[120, 60]") // e.g., [120, 60] minutes before (2hr, 1hr)
+  reminderMethod       String?       @default("notification") // "notification", "sms", "email", "all"
+  enableSmsReminders   Boolean       @default(false)
+  enableEmailReminders Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  appointments         Appointment[]
+  transactions         Transaction[]
 
   @@index([clinicId])
 }
@@ -320,6 +327,8 @@ model Appointment {
   zoomJoinUrl           String?
   zoomStartUrl          String?
   zoomMeetingId         String?
+  googleMeetUrl         String?
+  googleMeetId          String?
   googleCalendarEventId String?
   appointmentToken      String?           @unique
   transactionId         String?
@@ -574,6 +583,15 @@ enum IssueStatus {
   duplicate
 }
 
+enum NotificationType {
+  appointment
+  assessment
+  invoice
+  system
+  reminder
+  message
+}
+
 model UserIssue {
   id          String        @id @default(uuid())
   title       String
@@ -640,4 +658,22 @@ model FAQ {
   updatedAt DateTime @updatedAt
 
   @@index([order])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String           @db.Text
+  type      NotificationType
+  data      Json?
+  isRead    Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
 }

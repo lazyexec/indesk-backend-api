@@ -7,12 +7,17 @@ const createSession = {
     description: Joi.string().optional().allow(null, ""),
     price: Joi.number().required(),
     color: Joi.string().optional().allow(null, ""),
-    reminders: Joi.object()
-      .keys({
-        whatsapp: Joi.boolean().optional().default(false),
-        email: Joi.boolean().optional().default(false),
-      })
-      .optional(),
+    reminders: Joi.array()
+      .items(Joi.number().integer().min(1))
+      .optional()
+      .default([120, 60])
+      .description("Array of minutes before appointment to send reminders (default: [120, 60] = 2hr, 1hr)"),
+    reminderMethod: Joi.string()
+      .valid("notification", "sms", "email", "all")
+      .optional()
+      .default("notification"),
+    enableSmsReminders: Joi.boolean().optional().default(false),
+    enableEmailReminders: Joi.boolean().optional().default(false),
   }),
 };
 
@@ -42,12 +47,15 @@ const updateSession = {
       description: Joi.string().optional().allow(null, ""),
       price: Joi.number().optional(),
       color: Joi.string().optional().allow(null, ""),
-      reminders: Joi.object()
-        .keys({
-          whatsapp: Joi.boolean().optional().default(false),
-          email: Joi.boolean().optional().default(false),
-        })
+      reminders: Joi.array()
+        .items(Joi.number().integer().min(1))
+        .optional()
+        .description("Array of minutes before appointment to send reminders (default: [120, 60] = 2hr, 1hr)"),
+      reminderMethod: Joi.string()
+        .valid("notification", "sms", "email", "all")
         .optional(),
+      enableSmsReminders: Joi.boolean().optional(),
+      enableEmailReminders: Joi.boolean().optional(),
     })
     .min(1),
 };

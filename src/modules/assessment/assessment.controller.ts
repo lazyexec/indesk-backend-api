@@ -305,6 +305,53 @@ const submitAssessmentByClinician = catchAsync(
   }
 );
 
+// Get client progress based on assessment history
+const getClientProgress = catchAsync(async (req: Request, res: Response) => {
+  const userId: string = req.user?.id!;
+  const clinicId = await clinicService.getClinicIdByUserId(userId);
+
+  if (!clinicId) {
+    return res.status(httpStatus.BAD_REQUEST).json(
+      response({
+        status: httpStatus.BAD_REQUEST,
+        message: "User is not associated with a clinic",
+      })
+    );
+  }
+
+  const { clientId } = req.params;
+  const queryOptions = pick(req.query, ["templateId", "category", "startDate", "endDate", "frequency"]);
+
+  // Build options object with proper types
+  const options: any = {
+    templateId: queryOptions.templateId as string | undefined,
+    category: queryOptions.category as string | undefined,
+    frequency: (queryOptions.frequency as string) || "monthly",
+  };
+
+  // Parse dates if provided
+  if (queryOptions.startDate) {
+    options.startDate = new Date(queryOptions.startDate as string);
+  }
+  if (queryOptions.endDate) {
+    options.endDate = new Date(queryOptions.endDate as string);
+  }
+
+  const progress = await AssessmentService.getClientProgress(
+    clientId,
+    clinicId,
+    options
+  );
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Client progress retrieved successfully",
+      data: progress,
+    })
+  );
+});
+
 export default {
   createAssessmentTemplate,
   getAssessmentTemplates,
@@ -312,12 +359,13 @@ export default {
   updateAssessmentTemplate,
   deleteAssessmentTemplate,
   createAssessmentInstance,
-  shareAssessmentViaEmail,
+  getAssessmentInstances,
+  getAssessmentInstance,
   getAssessmentByToken,
   submitAssessment,
-  getAssessmentInstances,
-  getAssessmentInstancesByClientId,
-  getAssessmentInstance,
-  createAssessmentWithAi,
   submitAssessmentByClinician,
+  shareAssessmentViaEmail,
+  getAssessmentInstancesByClientId,
+  createAssessmentWithAi,
+  getClientProgress,
 };

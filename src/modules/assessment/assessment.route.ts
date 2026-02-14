@@ -112,4 +112,12 @@ router.post(
   assessmentController.submitAssessment,
 );
 
+// Client progress tracking
+router.get(
+  "/progress/:clientId",
+  auth("clinician_forms"),
+  validate(assessmentValidation.getClientProgress),
+  assessmentController.getClientProgress,
+);
+
 export default router;

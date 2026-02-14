@@ -7,8 +7,11 @@ import transactionService from "../transaction/transaction.service";
 import googleCalendarIntegration from "../integration/services/google-calendar.integration";
 import stripeIntegration from "../integration/services/stripe.integration";
 import zoomIntegration from "../integration/services/zoom.integration";
+import googleMeetIntegration from "../integration/services/google-meet.integration";
 import { isIntegrationConnected } from "../integration/integration.helper";
 import env from "../../configs/env";
+import notificationService from "../notification/notification.service";
+import { getNotificationTemplate } from "../notification/notification.templates";
 
 interface ICreateAppointment {
   clientId: string;
@@ -150,15 +153,30 @@ const createAppointment = async (
   //   throw new ApiError(httpStatus.BAD_REQUEST, "Failed to create Payment Intent!")
   // }
 
-  // Create Zoom meeting if meetingType is zoom and integration is connected
+  // Create meeting based on type and available integrations
   let zoomJoinUrl: string | null = null;
   let zoomStartUrl: string | null = null;
   let zoomMeetingId: string | null = null;
+  let googleMeetUrl: string | null = null;
+  let googleMeetId: string | null = null;
+  let googleCalendarEventId: string | null = null;
+  let actualMeetingType = meetingType;
 
-  if (meetingType === "zoom") {
-    try {
-      const hasZoom = await isIntegrationConnected(session.clinicId, "zoom");
-      if (hasZoom) {
+  if (meetingType === "zoom" || (meetingType as any) === "google_meet") {
+    // Check which integration is available
+    const hasZoom = await isIntegrationConnected(session.clinicId, "zoom");
+    const hasGoogleMeet = await isIntegrationConnected(session.clinicId, "google_meet");
+
+    // If requested type is not available, try the other one
+    if (meetingType === "zoom" && !hasZoom && hasGoogleMeet) {
+      actualMeetingType = "google_meet" as any;
+    } else if ((meetingType as any) === "google_meet" && !hasGoogleMeet && hasZoom) {
+      actualMeetingType = "zoom";
+    }
+
+    // Create Zoom meeting
+    if (actualMeetingType === "zoom" && hasZoom) {
+      try {
         const meeting = await zoomIntegration.createMeeting(session.clinicId, {
           topic: `${session.name} - ${client.firstName} ${client.lastName}`,
           startTime,
@@ -168,40 +186,57 @@ const createAppointment = async (
         zoomJoinUrl = meeting.joinUrl;
         zoomStartUrl = meeting.startUrl;
         zoomMeetingId = meeting.meetingId;
+      } catch (error) {
+        console.error("Failed to create Zoom meeting:", error);
       }
-    } catch (error) {
-      console.error("Failed to create Zoom meeting:", error);
-      zoomJoinUrl = null;
-      zoomStartUrl = null;
-      zoomMeetingId = null;
+    }
+
+    // Create Google Meet meeting
+    if ((actualMeetingType as any) === "google_meet" && hasGoogleMeet) {
+      try {
+        const meeting = await googleMeetIntegration.createMeeting(session.clinicId, {
+          topic: `${session.name} - ${client.firstName} ${client.lastName}`,
+          startTime,
+          duration: session.duration,
+          agenda: note || `Appointment for ${session.name}`,
+          attendees: [client.email],
+        });
+        googleMeetUrl = meeting.meetingUrl;
+        googleMeetId = meeting.meetingId;
+        googleCalendarEventId = meeting.eventId;
+      } catch (error) {
+        console.error("Failed to create Google Meet:", error);
+      }
     }
   }
 
   // Create Google Calendar event if integration is connected (BEFORE creating appointment)
-  let googleCalendarEventId: string | null = null;
-  try {
-    const hasGoogleCalendar = await isIntegrationConnected(
-      session.clinicId,
-      "google_calendar",
-    );
-    if (hasGoogleCalendar) {
-      const calendarEvent = await googleCalendarIntegration.createCalendarEvent(
+  if (!googleMeetId) {
+    // Only create separate calendar event if not using Google Meet (which creates its own)
+    try {
+      const hasGoogleCalendar = await isIntegrationConnected(
         session.clinicId,
-        {
-          title: `${session.name} - ${client.firstName} ${client.lastName}`,
-          description: note || `Appointment for ${session.name}`,
-          startTime,
-          endTime,
-          attendees: [client.email],
-          location:
-            meetingType === "zoom" ? zoomJoinUrl || undefined : undefined,
-        },
+        "google_calendar",
       );
-      googleCalendarEventId = calendarEvent.eventId;
+      if (hasGoogleCalendar) {
+        const calendarEvent = await googleCalendarIntegration.createCalendarEvent(
+          session.clinicId,
+          {
+            title: `${session.name} - ${client.firstName} ${client.lastName}`,
+            description: note || `Appointment for ${session.name}`,
+            startTime,
+            endTime,
+            attendees: [client.email],
+            location:
+              actualMeetingType === "zoom" ? zoomJoinUrl || undefined : undefined,
+          },
+        );
+        googleCalendarEventId = calendarEvent.eventId;
+      }
+    } catch (error) {
+      console.error("Failed to create Google Calendar event:", error);
+      // Continue without calendar event
     }
-  } catch (error) {
-    console.error("Failed to create Google Calendar event:", error);
-    // Continue without calendar event
   }
 
   // Create appointment with all integration IDs
@@ -213,7 +248,7 @@ const createAppointment = async (
       addedBy,
       sessionId,
       note,
-      meetingType,
+      meetingType: actualMeetingType,
       startTime,
       endTime,
       appointmentToken,
@@ -221,6 +256,8 @@ const createAppointment = async (
       zoomJoinUrl,
       zoomStartUrl,
       zoomMeetingId,
+      googleMeetUrl,
+      googleMeetId,
       googleCalendarEventId,
       via,
     },
@@ -248,6 +285,39 @@ const createAppointment = async (
       },
     },
   });
+
+  // Send notification to clinician
+  try {
+    const clinician = await prisma.clinicMember.findUnique({
+      where: { id: clinicianId },
+      select: { userId: true },
+    });
+
+    if (clinician) {
+      const template = getNotificationTemplate(
+        "appointment" as any,
+        "created",
+        `${client.firstName} ${client.lastName}`,
+        startTime.toLocaleString()
+      );
+
+      await notificationService.createNotification({
+        userId: clinician.userId,
+        title: template.title,
+        message: template.message,
+        type: "appointment" as any,
+        data: {
+          appointmentId: appointment.id,
+          clientName: `${client.firstName} ${client.lastName}`,
+          startTime: startTime.toISOString(),
+          sessionName: session.name,
+        },
+        sendPush: true,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to send appointment notification:", error);
+  }
 
   return {
     appointment,
@@ -445,7 +515,40 @@ const updateAppointmentStatus = async (appointmentId: string, status: any) => {
   const appointment = await prisma.appointment.update({
     where: { id: appointmentId },
     data: { status },
+    include: {
+      client: true,
+      clinician: {
+        include: { user: true },
+      },
+      session: true,
+    },
   });
+
+  // Send notification on status change
+  try {
+    if (status === "cancelled" && appointment.clinician) {
+      const template = getNotificationTemplate(
+        "appointment" as any,
+        "cancelled",
+        `${appointment.client.firstName} ${appointment.client.lastName}`
+      );
+
+      await notificationService.createNotification({
+        userId: appointment.clinician.userId,
+        title: template.title,
+        message: template.message,
+        type: "appointment" as any,
+        data: {
+          appointmentId: appointment.id,
+          clientName: `${appointment.client.firstName} ${appointment.client.lastName}`,
+          status,
+        },
+        sendPush: true,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to send appointment status notification:", error);
+  }
 
   return appointment;
 };

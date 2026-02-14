@@ -111,6 +111,7 @@ const addClinicMember = async (
         firstName: firstName || null,
         lastName: lastName || null,
         password: hashedPassword,
+        lastPasswordChangedAt: new Date(),
         role: "user", // Platform-level role
         isEmailVerified: true, // Auto-verify for clinic members
         ...userData,

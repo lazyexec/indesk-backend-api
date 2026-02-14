@@ -21,107 +21,32 @@ import issueRouter from "../../issue/issue.route";
 import transactionRouter from "../../transaction/transaction.route";
 import clinicalNoteRouter from "../../clinicalNote/clinicalNote.route";
 import aiAssistantRouter from "../../ai-assistant/ai-assistant.route";
+import notificationRouter from "../../notification/notification.route";
 
 const mainRouter: Router = express.Router();
 
-interface routeObjects {
-  path: string;
-  route: Router;
-}
-
-const routes: routeObjects[] = [
-  {
-    path: "/auth",
-    route: authRouter,
-  },
-  {
-    path: "/user",
-    route: userRouter,
-  },
-  {
-    path: "/setting",
-    route: settingsRouter,
-  },
-  {
-    path: "/clinic",
-    route: clinicRouter,
-  },
-  {
-    path: "/plans",
-    route: plansRouter,
-  },
-  {
-    path: "/clinic-member",
-    route: clinicMemberRouter,
-  },
-  {
-    path: "/session",
-    route: sessionRouter,
-  },
-  {
-    path: "/integration",
-    route: integrationRouter,
-  },
-  {
-    path: "/client",
-    route: clientRouter,
-  },
-  {
-    path: "/appointment",
-    route: appointmentRouter,
-  },
-  {
-    path: "/stripe",
-    route: stripeRouter,
-  },
-  {
-    path: "/provider",
-    route: providerRouter,
-  },
-  {
-    path: "/assessment",
-    route: assessmentRouter,
-  },
-  {
-    path: "/invoice",
-    route: invoiceRouter,
-  },
-  {
-    path: "/subscription",
-    route: subscriptionRouter,
-  },
-  {
-    path: "/report",
-    route: reportRouter,
-  },
-  {
-    path: "/analytics",
-    route: analyticsRouter,
-  },
-  {
-    path: "/dashboard",
-    route: dashboardRouter,
-  },
-  {
-    path: "/issue",
-    route: issueRouter,
-  },
-  {
-    path: "/transaction",
-    route: transactionRouter,
-  },
-  {
-    path: "/clinical-note",
-    route: clinicalNoteRouter,
-  },
-  {
-    path: "/ai-assistant",
-    route: aiAssistantRouter,
-  },
-];
-
-routes.forEach((routeProvide: routeObjects) => {
-  mainRouter.use(routeProvide.path, routeProvide.route);
-});
+mainRouter.use("/auth", authRouter);
+mainRouter.use("/user", userRouter);
+mainRouter.use("/setting", settingsRouter);
+mainRouter.use("/clinic", clinicRouter);
+mainRouter.use("/plans", plansRouter);
+mainRouter.use("/clinic-member", clinicMemberRouter);
+mainRouter.use("/session", sessionRouter);
+mainRouter.use("/integration", integrationRouter);
+mainRouter.use("/client", clientRouter);
+mainRouter.use("/appointment", appointmentRouter);
+mainRouter.use("/stripe", stripeRouter);
+mainRouter.use("/provider", providerRouter);
+mainRouter.use("/assessment", assessmentRouter);
+mainRouter.use("/invoice", invoiceRouter);
+mainRouter.use("/subscription", subscriptionRouter);
+mainRouter.use("/report", reportRouter);
+mainRouter.use("/analytics", analyticsRouter);
+mainRouter.use("/dashboard", dashboardRouter);
+mainRouter.use("/issue", issueRouter);
+mainRouter.use("/transaction", transactionRouter);
+mainRouter.use("/clinical-note", clinicalNoteRouter);
+mainRouter.use("/ai-assistant", aiAssistantRouter);
+mainRouter.use("/notification", notificationRouter);
 
 export default mainRouter;
