@@ -5,10 +5,6 @@ import env from "../configs/env";
 const logDir = "logs";
 const date = new Date().toISOString().slice(0, 10);
 const logName = path.join(logDir, `log-${date}.log`);
-const isServerless =
-  process.env.VERCEL === "1" ||
-  Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
-  Boolean(process.env.LAMBDA_TASK_ROOT);
 
 const customLevels = {
   levels: {
@@ -42,7 +38,7 @@ const formatMeta = winston.format((info) => {
 // Custom layout
 const logFormat = winston.format.printf(
   ({ timestamp, level, message }) =>
-    `${timestamp} [${level.toUpperCase()}] ${message}`
+    `${timestamp} [${level.toUpperCase()}] ${message}`,
 );
 
 const logger = winston.createLogger({
@@ -51,7 +47,7 @@ const logger = winston.createLogger({
   format: winston.format.combine(
     winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
     formatMeta(),
-    logFormat
+    logFormat,
   ),
   transports: (() => {
     const transports: winston.transport[] = [
@@ -60,12 +56,11 @@ const logger = winston.createLogger({
         format: winston.format.combine(
           winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
           logFormat,
-          winston.format.colorize({ all: true })
+          winston.format.colorize({ all: true }),
         ),
       }),
     ];
 
-    if (!isServerless) {
       try {
         const fs = require("fs") as typeof import("fs");
         fs.mkdirSync(logDir, { recursive: true });
@@ -73,7 +68,7 @@ const logger = winston.createLogger({
       } catch {
         // Keep app alive with console logs only if file logging is unavailable.
       }
-    }
+    
 
     return transports;
   })(),
