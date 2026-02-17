@@ -73,11 +73,12 @@ const updateOwnClinic = catchAsync(async (req: Request, res: Response) => {
   }
 
   const files = req.files as any;
-  const { name, email, phoneNumber, address, countryCode, description, color } = req.body;
+  const { name, email, url, phoneNumber, address, countryCode, description, color } = req.body;
 
   const updateData: any = {};
   if (name !== undefined) updateData.name = name;
   if (email !== undefined) updateData.email = email;
+  if (url !== undefined) updateData.url = url;
   if (phoneNumber !== undefined) updateData.phoneNumber = phoneNumber;
   if (countryCode !== undefined) updateData.countryCode = countryCode;
   if (address !== undefined) updateData.address = address;

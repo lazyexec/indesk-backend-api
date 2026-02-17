@@ -49,6 +49,7 @@ const createClinic = async (
 
   // Add optional fields only if they exist and are not undefined
   if (data.email !== undefined) clinicData.email = data.email;
+  if (data.url !== undefined) clinicData.url = data.url;
   if (data.phoneNumber !== undefined) clinicData.phoneNumber = data.phoneNumber;
   if (data.address !== undefined) clinicData.address = data.address;
   if (data.logo !== undefined) clinicData.logo = data.logo;

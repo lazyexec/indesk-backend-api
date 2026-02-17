@@ -539,6 +539,9 @@
                   "email": {
                     "example": "any"
                   },
+                  "url": {
+                    "example": "any"
+                  },
                   "phoneNumber": {
                     "example": "any"
                   },

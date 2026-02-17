@@ -162,6 +162,7 @@ model Clinic {
   id          String  @id @default(uuid())
   name        String
   email       String? @unique
+  url         String?
   phoneNumber String?
   countryCode String?
   address     Json?

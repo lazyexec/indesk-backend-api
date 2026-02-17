@@ -4,6 +4,7 @@ export interface IClinic {
   id: string;
   name: string;
   email?: string | null;
+  url?: string | null;
   phoneNumber?: string | null;
   countryCode?: string | null;
   address?: any; // Json in Prisma
