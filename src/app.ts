@@ -14,6 +14,7 @@ import path from "path";
 import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import swaggerDocs from "./docs/swagger";
+import sendRootDocs from "./utils/sendRootDocs";
 
 const app: Application = express();
 // Rate Limiter
@@ -58,6 +59,6 @@ app.use("/api/v1", v1Router);
 app.use(errorConverter);
 app.use(errorHandler);
 app.get("/", (_, res) => {
-  res.sendFile(path.join(__dirname, "./docs/index.html"));
+  sendRootDocs(res, __dirname);
 });
 export default app;
