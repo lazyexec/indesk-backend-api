@@ -36,3 +36,16 @@ export interface SuggestionsRequest {
     context?: "dashboard" | "client" | "appointment" | "invoice";
     contextId?: string;
 }
+
+export interface EnhanceEmailRequest {
+    content: string;
+    tone?: "professional" | "friendly" | "formal";
+    purpose?: string;
+}
+
+export interface SendEmailRequest {
+    clientId: string;
+    clinicianId: string;
+    content: string;
+    subject?: string;
+}

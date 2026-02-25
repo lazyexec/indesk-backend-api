@@ -2609,6 +2609,32 @@
         ]
       }
     },
+    "/ai-assistant/enhance-email": {
+      "post": {
+        "description": "",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai Assistant"
+        ]
+      }
+    },
+    "/ai-assistant/send-email": {
+      "post": {
+        "description": "",
+        "responses": {
+          "default": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Ai Assistant"
+        ]
+      }
+    },
     "/notification/clinic/{clinicId}": {
       "get": {
         "description": "",

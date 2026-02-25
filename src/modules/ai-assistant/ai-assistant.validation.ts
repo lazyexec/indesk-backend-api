@@ -55,10 +55,29 @@ const suggestions = {
     }),
 };
 
+const enhanceEmail = {
+    body: Joi.object({
+        content: Joi.string().required().min(10).max(2000),
+        tone: Joi.string().valid("professional", "friendly", "formal").default("professional"),
+        purpose: Joi.string().max(100),
+    }),
+};
+
+const sendEmail = {
+    body: Joi.object({
+        clientId: Joi.string().required(),
+        clinicianId: Joi.string().required(),
+        content: Joi.string().required().min(10).max(2000),
+        subject: Joi.string().max(200),
+    }),
+};
+
 export default {
     chat,
     draftEmail,
     summarizeSchedule,
     createInvoice,
     suggestions,
+    enhanceEmail,
+    sendEmail,
 };

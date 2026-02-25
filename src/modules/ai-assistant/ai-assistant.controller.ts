@@ -129,10 +129,60 @@ const getSuggestions = catchAsync(async (req: AuthenticatedRequest, res: Respons
     );
 });
 
+const enhanceEmail = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "Authentication required");
+    }
+
+    if (!req.user.clinicId) {
+        throw new ApiError(httpStatus.FORBIDDEN, "No clinic access");
+    }
+
+    const result = await aiAssistantService.enhanceEmail(
+        req.user.id,
+        req.user.clinicId,
+        req.body
+    );
+
+    res.status(httpStatus.OK).json(
+        response({
+            status: httpStatus.OK,
+            message: "Email enhanced successfully",
+            data: result,
+        })
+    );
+});
+
+const sendEmail = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.user) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "Authentication required");
+    }
+
+    if (!req.user.clinicId) {
+        throw new ApiError(httpStatus.FORBIDDEN, "No clinic access");
+    }
+
+    const result = await aiAssistantService.sendEmail(
+        req.user.id,
+        req.user.clinicId,
+        req.body
+    );
+
+    res.status(httpStatus.OK).json(
+        response({
+            status: httpStatus.OK,
+            message: "Email sent successfully",
+            data: result,
+        })
+    );
+});
+
 export default {
     chat,
     draftEmail,
     summarizeSchedule,
     createInvoice,
     getSuggestions,
+    enhanceEmail,
+    sendEmail,
 };

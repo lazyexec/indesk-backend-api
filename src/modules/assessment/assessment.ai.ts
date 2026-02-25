@@ -18,40 +18,53 @@ interface AssessmentResponse {
 const createAssessmentAi = async (
   topic: string,
 ): Promise<AssessmentResponse> => {
-  const systemPrompt = `You are an experienced clinician creating educational assessments for your clinic. Your role is to:
-- Design clinically relevant, evidence-based questions that help assess healthcare professionals' knowledge
-- Create questions based on current clinical guidelines and best practices
-- Ensure questions are practical and applicable to real-world clinical scenarios
-- Focus on patient safety, diagnostic accuracy, and treatment protocols
-- Write clear, unambiguous questions that test critical thinking
+  const systemPrompt = `You are a healthcare professional creating patient intake assessments. Your role is to:
+- Create questions that help clinicians understand patient symptoms, conditions, and health status
+- Ask about relevant symptoms, severity, frequency, and impact on daily life
+- Include questions about medical history, current medications, and lifestyle factors
+- Use clear, patient-friendly language
+- Focus on gathering clinically useful information for diagnosis and treatment
 
-Your assessments should reflect the knowledge needed for competent clinical practice.`;
+These are NOT educational quizzes - they are health intake forms for patients to complete.`;
 
-  const userPrompt = `Generate a clinical assessment quiz on the topic: "${topic}".
+  const userPrompt = `Create a patient assessment form about: "${topic}".
 
-Create 5 multiple-choice questions with 4 options each. Return ONLY valid JSON in this exact format:
+Generate 5-7 questions to help clinicians understand the patient's condition related to ${topic}. Mix question types appropriately.
+
+Return ONLY valid JSON in this exact format:
 
 {
   "topic": "${topic}",
-  "difficulty": "intermediate",
-  "estimatedTime": 8,
+  "estimatedTime": 5,
   "questions": [
     {
       "id": 1,
-      "question": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctAnswer": 0,
-      "explanation": "Brief explanation of why this is correct"
+      "question": "How long have you been experiencing symptoms related to ${topic}?",
+      "options": ["Less than 1 week", "1-4 weeks", "1-3 months", "More than 3 months"],
+      "correctAnswer": 0
+    },
+    {
+      "id": 2,
+      "question": "Please describe your main symptoms in detail",
+      "options": [],
+      "correctAnswer": 0
     }
   ]
 }
 
+Question types to use:
+- Multiple choice for severity, frequency, duration (include 4 options)
+- Text questions for detailed symptom descriptions (empty options array)
+- Yes/No questions for specific symptoms or history (2 options: "Yes", "No")
+
 Requirements:
-- Questions should be clinically relevant and evidence-based
-- Options should be plausible and challenging
-- correctAnswer is the index (0-3) of the correct option
-- Include brief explanations for educational value
-- Return ONLY the JSON object, no markdown formatting or additional text`;
+- Questions must be DIRECTLY about ${topic} and related symptoms
+- Use patient-friendly language (avoid medical jargon)
+- Ask about symptom severity, frequency, duration, triggers
+- Include at least 1-2 text questions for detailed responses
+- Keep questions clear and concise
+- Focus on information clinicians need for assessment
+- Return ONLY the JSON object, no markdown or extra text`;
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 

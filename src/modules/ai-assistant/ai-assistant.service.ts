@@ -8,7 +8,10 @@ import {
     SummarizeScheduleRequest,
     CreateInvoiceRequest,
     SuggestionsRequest,
+    EnhanceEmailRequest,
+    SendEmailRequest,
 } from "./ai-assistant.interface";
+import mailchimpService from "../integration/services/mailchimp.integration";
 
 const chat = async (userId: string, clinicId: string, chatRequest: ChatRequest) => {
     const { message, conversationHistory = [], context } = chatRequest;
@@ -415,10 +418,139 @@ const extractBody = (emailText: string): string => {
     return bodyMatch ? bodyMatch.trim() : emailText;
 };
 
+const enhanceEmail = async (userId: string, clinicId: string, request: EnhanceEmailRequest) => {
+    const { content, tone = "professional", purpose } = request;
+
+    const prompt = `Enhance this email to make it more ${tone} and effective${purpose ? ` for ${purpose}` : ""}. Keep it concise and clear.
+
+Original email:
+${content}
+
+Provide an improved version that is professional, warm, and to the point. Return only the enhanced email text without any additional formatting or explanations.`;
+
+    const response = await aiClient.generateText({
+        model: "gemini-2.5-flash",
+        messages: [
+            {
+                role: "system",
+                content: "You are an expert at writing professional, concise emails for healthcare clinics. Enhance emails to be clear, warm, and effective while keeping them brief.",
+            },
+            {
+                role: "user",
+                content: prompt,
+            },
+        ],
+    });
+
+    return {
+        original: content,
+        enhanced: response.text.trim(),
+    };
+};
+
+const sendEmail = async (userId: string, clinicId: string, request: SendEmailRequest) => {
+    const { clientId, clinicianId, content, subject } = request;
+
+    // Get client details
+    const client = await prisma.client.findUnique({
+        where: { id: clientId, clinicId },
+        select: {
+            email: true,
+            firstName: true,
+            lastName: true,
+        },
+    });
+
+    if (!client) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Client not found");
+    }
+
+    // Get clinician details
+    const clinician = await prisma.clinicMember.findUnique({
+        where: { id: clinicianId, clinicId },
+        include: {
+            user: {
+                select: {
+                    firstName: true,
+                    lastName: true,
+                },
+            },
+        },
+    });
+
+    if (!clinician) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Clinician not found");
+    }
+
+    // Get clinic details
+    const clinic = await prisma.clinic.findUnique({
+        where: { id: clinicId },
+        select: {
+            name: true,
+        },
+    });
+
+    // Check if Mailchimp is connected
+    const isConnected = await mailchimpService.isMailchimpConnected(clinicId);
+    if (!isConnected) {
+        throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            "Mailchimp is not connected. Please connect Mailchimp to send emails."
+        );
+    }
+
+    // Format email HTML
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .content { padding: 20px; background-color: #f9f9f9; }
+    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="content">
+      <p>Hi ${client.firstName},</p>
+      ${content.split('\n').map(p => `<p>${p}</p>`).join('')}
+      <p>Best regards,<br>${clinician.user.firstName} ${clinician.user.lastName}<br>${clinic?.name || ''}</p>
+    </div>
+    <div class="footer">
+      <p>This email was sent from ${clinic?.name || 'our clinic'}</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    // Send via Mailchimp
+    const result = await mailchimpService.sendTransactionalEmail(clinicId, {
+        to: client.email,
+        subject: subject || "Message from your clinician",
+        html,
+        text: content,
+        fromName: `${clinician.user.firstName} ${clinician.user.lastName}`,
+    });
+
+    if (!result.success) {
+        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, "Failed to send email");
+    }
+
+    return {
+        success: true,
+        sentTo: client.email,
+        clientName: `${client.firstName} ${client.lastName}`,
+    };
+};
+
 export default {
     chat,
     draftEmail,
     summarizeSchedule,
     createInvoice,
     getSuggestions,
+    enhanceEmail,
+    sendEmail,
 };

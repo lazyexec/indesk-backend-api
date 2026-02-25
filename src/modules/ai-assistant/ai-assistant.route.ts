@@ -46,4 +46,20 @@ router.get(
     aiAssistantController.getSuggestions
 );
 
+// Enhance email with AI
+router.post(
+    "/enhance-email",
+    auth("clinician_ai"),
+    validate(aiAssistantValidation.enhanceEmail),
+    aiAssistantController.enhanceEmail
+);
+
+// Send email to client via Mailchimp
+router.post(
+    "/send-email",
+    auth("clinician_ai"),
+    validate(aiAssistantValidation.sendEmail),
+    aiAssistantController.sendEmail
+);
+
 export default router;
