@@ -30,8 +30,8 @@ const createClinic = async (
     throw new ApiError(httpStatus.NOT_FOUND, "User not found");
   }
 
-  // Generate public token
-  const publicToken = crypto.randomBytes(32).toString("hex");
+  // Generate public token (8-12 characters)
+  const publicToken = crypto.randomBytes(6).toString("hex"); // 12 hex chars
 
   // Build clinic data with only provided fields
   const clinicData: any = {

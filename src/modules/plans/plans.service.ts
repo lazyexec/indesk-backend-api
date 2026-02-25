@@ -8,6 +8,7 @@ import planService from "../subscription/plan.service";
 import permissions from "../../configs/permissions";
 import stripeConfig from "../../configs/stripe";
 import env from "../../configs/env";
+import crypto from "crypto";
 
 interface IPurchaseData {
   // Clinic details
@@ -119,6 +120,9 @@ const initiatePurchase = async (
   // Get the selected plan
   const plan = await planService.getPlanByType(planType);
 
+  // Generate public token (8-12 characters)
+  const publicToken = crypto.randomBytes(6).toString("hex"); // 12 hex chars
+
   // Create pending clinic (not activated yet)
   const clinic = await prisma.clinic.create({
     data: {
@@ -129,6 +133,7 @@ const initiatePurchase = async (
       address: address || {},
       description,
       ownerId: userId,
+      publicToken,
       isActive: false, // Will be activated after successful payment
       permissions: permissions, // Default permissions
     },
