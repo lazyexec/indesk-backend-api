@@ -6,6 +6,13 @@ import auth from "../../middlewares/auth";
 
 const router: Router = express.Router();
 
+// Public route (no authentication required)
+router.get(
+  "/public/:publicToken",
+  validate(sessionValidation.getSessionsByClinicToken),
+  sessionController.getSessionsByClinicToken
+);
+
 router.post(
   "/",
   auth("clinician_sessions"),

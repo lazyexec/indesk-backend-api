@@ -67,10 +67,22 @@ const deleteSession = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const getSessionsByClinicToken = catchAsync(async (req: Request, res: Response) => {
+  const result = await sessionService.getSessionsByClinicToken(req.params.publicToken);
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Sessions retrieved successfully",
+      data: result,
+    }),
+  );
+});
+
 export default {
   createSession,
   getSessions,
   getSession,
   updateSession,
   deleteSession,
+  getSessionsByClinicToken,
 };

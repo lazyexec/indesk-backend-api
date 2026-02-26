@@ -66,10 +66,17 @@ const deleteSession = {
   }),
 };
 
+const getSessionsByClinicToken = {
+  params: Joi.object().keys({
+    publicToken: Joi.string().required(),
+  }),
+};
+
 export default {
   createSession,
   getSessions,
   getSession,
   updateSession,
   deleteSession,
+  getSessionsByClinicToken,
 };

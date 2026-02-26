@@ -421,19 +421,25 @@ const extractBody = (emailText: string): string => {
 const enhanceEmail = async (userId: string, clinicId: string, request: EnhanceEmailRequest) => {
     const { content, tone = "professional", purpose } = request;
 
-    const prompt = `Enhance this email to make it more ${tone} and effective${purpose ? ` for ${purpose}` : ""}. Keep it concise and clear.
+    const prompt = `Enhance this email body content to make it more ${tone} and effective${purpose ? ` for ${purpose}` : ""}. Keep it concise and clear.
 
-Original email:
+IMPORTANT: 
+- Do NOT add greetings like "Dear [Name]" or "Hi [Name]"
+- Do NOT add closings like "Best regards", "Sincerely", or signature lines
+- Only improve the BODY content itself
+- The greeting and signature will be added separately by the frontend
+
+Original email body:
 ${content}
 
-Provide an improved version that is professional, warm, and to the point. Return only the enhanced email text without any additional formatting or explanations.`;
+Return ONLY the enhanced body content without any greetings, closings, or formatting.`;
 
     const response = await aiClient.generateText({
         model: "gemini-2.5-flash",
         messages: [
             {
                 role: "system",
-                content: "You are an expert at writing professional, concise emails for healthcare clinics. Enhance emails to be clear, warm, and effective while keeping them brief.",
+                content: "You are an expert at enhancing email body content for healthcare clinics. Improve clarity, tone, and effectiveness while keeping it brief. Never add greetings or signatures - only enhance the body content.",
             },
             {
                 role: "user",

@@ -244,6 +244,71 @@ const getClinicIdByUserId = async (userId: string) => {
   return clinic?.clinicId;
 };
 
+const getClinicByPublicToken = async (publicToken: string) => {
+  const clinic = await prisma.clinic.findUnique({
+    where: { publicToken },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      url: true,
+      phoneNumber: true,
+      countryCode: true,
+      address: true,
+      logo: true,
+      description: true,
+      color: true,
+      publicToken: true,
+      sessions: {
+        select: {
+          id: true,
+          name: true,
+          duration: true,
+          description: true,
+          price: true,
+          color: true,
+          createdAt: true,
+        },
+        orderBy: {
+          name: "asc",
+        },
+      },
+      members: {
+        where: {
+          role: {
+            in: ["clinician", "admin", "superAdmin"],
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatar: true,
+              bio: true,
+              phoneNumber: true,
+              countryCode: true,
+            },
+          },
+        },
+        orderBy: {
+          user: {
+            firstName: "asc",
+          },
+        },
+      },
+    },
+  });
+
+  if (!clinic) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
+  }
+
+  return clinic;
+};
+
 export default {
   createClinic,
   getClinicById,
@@ -251,4 +316,5 @@ export default {
   deleteClinic,
   getClinics,
   getClinicIdByUserId,
+  getClinicByPublicToken,
 };

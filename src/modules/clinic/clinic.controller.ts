@@ -138,6 +138,19 @@ const deleteOwnClinic = catchAsync(async (req: Request, res: Response) => {
   );
 });
 
+const getClinicByPublicToken = catchAsync(async (req: Request, res: Response) => {
+  const { publicToken } = req.params;
+  const clinic = await clinicService.getClinicByPublicToken(publicToken);
+
+  res.status(httpStatus.OK).json(
+    response({
+      status: httpStatus.OK,
+      message: "Clinic retrieved successfully",
+      data: clinic,
+    })
+  );
+});
+
 export default {
   // Provider routes
   getAllClinicsForProvider,
@@ -149,4 +162,7 @@ export default {
   updateOwnClinic,
   updateOwnClinicPermissions,
   deleteOwnClinic,
+
+  // Public routes
+  getClinicByPublicToken,
 };

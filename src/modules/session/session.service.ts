@@ -81,10 +81,50 @@ const deleteSession = async (id: string) => {
   return deletedSession;
 };
 
+const getSessionsByClinicToken = async (publicToken: string) => {
+  // Find clinic by public token
+  const clinic = await prisma.clinic.findUnique({
+    where: { publicToken },
+    select: { id: true, name: true },
+  });
+
+  if (!clinic) {
+    throw new ApiError(httpStatus.NOT_FOUND, "Clinic not found");
+  }
+
+  // Get all active sessions for this clinic
+  const sessions = await prisma.session.findMany({
+    where: {
+      clinicId: clinic.id,
+    },
+    select: {
+      id: true,
+      name: true,
+      duration: true,
+      description: true,
+      price: true,
+      color: true,
+      createdAt: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  return {
+    clinic: {
+      id: clinic.id,
+      name: clinic.name,
+    },
+    sessions,
+  };
+};
+
 export default {
   createSession,
   getSessions,
   getSessionById,
   updateSession,
   deleteSession,
+  getSessionsByClinicToken,
 };

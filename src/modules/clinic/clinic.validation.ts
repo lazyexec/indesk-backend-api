@@ -83,6 +83,11 @@ const getClinics = {
   }),
 };
 
+const getClinicByPublicToken = {
+  params: Joi.object().keys({
+    publicToken: Joi.string().required(),
+  }),
+};
 
 export default {
   createClinic,
@@ -91,4 +96,5 @@ export default {
   updateClinic,
   updatePermissions,
   deleteClinic,
+  getClinicByPublicToken,
 };

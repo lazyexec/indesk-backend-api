@@ -11,6 +11,13 @@ const upload = uploader("./public/uploads/all").fields([
 
 const router: Router = express.Router();
 
+// Public routes (no authentication required)
+router.get(
+  "/public/:publicToken",
+  validate(clinicValidation.getClinicByPublicToken),
+  clinicController.getClinicByPublicToken
+);
+
 // Provider routes (admin access to all clinics)
 router.post(
   '/provider/create',
