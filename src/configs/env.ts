@@ -87,9 +87,15 @@ const validator = Joi.object()
       .optional()
       .description("Twilio OAuth Client Secret"),
     // AI API Keys
+    AI_PROVIDER: Joi.string()
+      .valid("gemini", "openai", "claude")
+      .default("gemini")
+      .description("AI Provider"),
     GEMINI_API_KEY: Joi.string()
       .optional()
       .description("Google Gemini API Key"),
+    OPENAI_API_KEY: Joi.string().optional().description("OpenAI API Key"),
+    ANTHROPIC_API_KEY: Joi.string().optional().description("Anthropic API Key"),
   })
   .unknown();
 
@@ -170,7 +176,10 @@ const env = {
     redirectUri: value.BACKEND_URL + '/api/v1/integration/oauth/callback/google_calendar',
   },
   ai_api: {
+    provider: value.AI_PROVIDER,
     gemini: value.GEMINI_API_KEY,
+    openai: value.OPENAI_API_KEY,
+    claude: value.ANTHROPIC_API_KEY,
   },
 };
 export default env;

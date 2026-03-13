@@ -14,6 +14,7 @@ import fs from "../../utils/fs";
 import notificationService from "../notification/notification.service";
 import { getNotificationTemplate } from "../notification/notification.templates";
 import { getClientProgress } from "./assessment.progress";
+import { analyzeAssessmentResponses } from "./assessment.ai";
 
 // Generate unique share token
 const generateShareToken = (): string => {
@@ -63,7 +64,6 @@ const createAssessmentTemplate = async (
           question: q.question,
           type: q.type,
           options: q.options ? (q.options as any) : undefined,
-          correctAnswer: undefined, // Not needed - completion-based scoring
           points: q.points || 1,
           order: q.order !== undefined ? q.order : index,
         })),
@@ -251,7 +251,6 @@ const updateAssessmentTemplate = async (
             question: q.question,
             type: q.type,
             options: q.options ? (q.options as any) : undefined,
-            correctAnswer: undefined, // Not needed - completion-based scoring
             points: q.points || 1,
             order: q.order !== undefined ? q.order : index,
           })),
@@ -487,10 +486,40 @@ const shareAssessmentViaEmail = async (
 const getAssessmentByToken = async (shareToken: string) => {
   const instance = await prisma.assessmentInstance.findUnique({
     where: { shareToken },
-    include: {
+    select: {
+      id: true,
+      templateId: true,
+      clientId: true,
+      clinicianId: true,
+      status: true,
+      document: true,
+      note: true,
+      score: true,
+      maxScore: true,
+      completedAt: true,
+      createdAt: true,
+      updatedAt: true,
       template: {
-        include: {
+        select: {
+          id: true,
+          clinicId: true,
+          createdBy: true,
+          title: true,
+          description: true,
+          category: true,
+          document: true,
+          note: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
           questions: {
+            select: {
+              id: true,
+              question: true,
+              type: true,
+              options: true,
+              order: true,
+            },
             orderBy: {
               order: "asc",
             },
@@ -512,20 +541,13 @@ const getAssessmentByToken = async (shareToken: string) => {
     throw new ApiError(httpStatus.NOT_FOUND, "Assessment not found");
   }
 
-  // Don't include correct answers for patient view
-  const questionsWithoutAnswers = instance.template.questions.map((q) => ({
-    id: q.id,
-    question: q.question,
-    type: q.type,
-    options: q.options,
-    order: q.order,
-  }));
-
   return {
     ...instance,
+    // Keep a top-level questions array for clients that don't read nested template data.
+    questions: instance.template.questions,
     template: {
       ...instance.template,
-      questions: questionsWithoutAnswers,
+      questions: instance.template.questions,
     },
   };
 };
@@ -572,18 +594,8 @@ const submitAssessment = async (
     );
   }
 
-  // Calculate score
-  let totalScore = 0;
-  let maxScore = 0;
-  const responsesToCreate: Array<{
-    instanceId: string;
-    questionId: string;
-    answer: string;
-    isCorrect: boolean | null;
-    points: number;
-  }> = [];
-
-  for (const response of submitData.responses) {
+  // Prepare data for AI analysis
+  const questionsAndAnswers = submitData.responses.map((response) => {
     const question = questionMap.get(response.questionId);
     if (!question) {
       throw new ApiError(
@@ -591,21 +603,42 @@ const submitAssessment = async (
         `Question ${response.questionId} not found`
       );
     }
+    return {
+      question: question.question,
+      type: question.type,
+      answer: response.answer,
+      options: question.options,
+    };
+  });
 
-    maxScore += question.points;
+  // Use AI to analyze responses and generate scores
+  const aiAnalysis = await analyzeAssessmentResponses(
+    instance.template.title,
+    questionsAndAnswers
+  );
 
-    // Give points for any answer (completion-based scoring)
-    const pointsEarned = question.points;
-    totalScore += pointsEarned;
+  // Map AI analysis to responses
+  const responsesToCreate: Array<{
+    instanceId: string;
+    questionId: string;
+    answer: string;
+    points: number;
+  }> = [];
+
+  submitData.responses.forEach((response, index) => {
+    const question = questionMap.get(response.questionId);
+    if (!question) return;
+
+    const responseAnalysis = aiAnalysis.responsesAnalysis[index];
+    const points = responseAnalysis?.points || 0;
 
     responsesToCreate.push({
       instanceId: instance.id,
       questionId: response.questionId,
       answer: response.answer,
-      isCorrect: null, // Not tracking correctness anymore
-      points: pointsEarned,
+      points: points,
     });
-  }
+  });
 
   // Update instance and create responses in a transaction
   const updatedInstance = await prisma.$transaction(async (tx) => {
@@ -619,14 +652,15 @@ const submitAssessment = async (
       data: responsesToCreate,
     });
 
-    // Update instance
+    // Update instance with AI-generated scores and analysis
     const updated = await tx.assessmentInstance.update({
       where: { id: instance.id },
       data: {
         status: "completed",
-        score: totalScore,
-        maxScore: maxScore,
+        score: aiAnalysis.totalScore,
+        maxScore: aiAnalysis.maxScore,
         completedAt: new Date(),
+        note: `${instance.note || ""}\n\nAI Analysis:\nSeverity: ${aiAnalysis.severity}\nSummary: ${aiAnalysis.summary}\n\nRecommendations:\n${aiAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}`.trim(),
         ...(submittedByClinician && clinicianId ? { clinicianId } : {}),
       },
       include: {
@@ -938,7 +972,6 @@ const submitAssessmentByClinician = async (
     instanceId: string;
     questionId: string;
     answer: string;
-    isCorrect: boolean | null;
     points: number;
   }> = [];
 
@@ -961,7 +994,6 @@ const submitAssessmentByClinician = async (
       instanceId: instance.id,
       questionId: response.questionId,
       answer: response.answer,
-      isCorrect: null,
       points: pointsEarned,
     });
   }

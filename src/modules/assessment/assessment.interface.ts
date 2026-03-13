@@ -10,7 +10,6 @@ export interface IAssessmentQuestion {
   question: string;
   type: "text" | "multiple_choice" | "yes_no";
   options?: string[];
-  correctAnswer?: string;
   points?: number;
   order?: number;
 }

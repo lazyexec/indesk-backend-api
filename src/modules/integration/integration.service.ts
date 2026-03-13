@@ -2,7 +2,6 @@ import prisma from "../../configs/prisma";
 import {
   IntegrationType,
   IntegrationStatus,
-  Prisma,
 } from "@prisma/client";
 import ApiError from "../../utils/ApiError";
 import httpStatus from "http-status";
@@ -11,6 +10,17 @@ import {
   getAllIntegrationMetadata,
 } from "./integration.metadata";
 import env from "../../configs/env";
+
+const ensureIntegrationIsAvailable = (type: IntegrationType) => {
+  const metadata = getIntegrationMetadata(type);
+  if (metadata.availability === "coming_soon") {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      `${metadata.name} integration is coming soon`
+    );
+  }
+  return metadata;
+};
 
 /**
  * Get all integrations for a clinic with metadata and health status
@@ -32,7 +42,11 @@ const getIntegrations = async (clinicId: string) => {
       let lastHealthCheck = null;
 
       // Check health for connected integrations
-      if (existing && existing.status === IntegrationStatus.connected) {
+      if (
+        existing &&
+        existing.status === IntegrationStatus.connected &&
+        metadata.availability !== "coming_soon"
+      ) {
         try {
           const health = await checkIntegrationHealth(clinicId, metadata.type);
           healthStatus = health.status;
@@ -43,6 +57,11 @@ const getIntegrations = async (clinicId: string) => {
         }
       }
 
+      const defaultStatus =
+        metadata.availability === "coming_soon"
+          ? IntegrationStatus.upcoming
+          : IntegrationStatus.disconnected;
+
       return {
         id: existing?.id || null,
         type: metadata.type,
@@ -50,10 +69,12 @@ const getIntegrations = async (clinicId: string) => {
         description: metadata.description,
         icon: metadata.icon,
         category: metadata.category,
-        status: existing?.status || IntegrationStatus.disconnected,
+        status: existing?.status || defaultStatus,
         isConfigured: existing?.isConfigured || false,
         requiresOAuth: metadata.requiresOAuth,
         oauthUrl: metadata.oauthUrl || null,
+        availability: metadata.availability || "available",
+        comingSoonMessage: metadata.comingSoonMessage || null,
         healthStatus,
         lastHealthCheck,
         updatedAt: existing?.updatedAt || null,
@@ -74,7 +95,7 @@ const getIntegrations = async (clinicId: string) => {
  * @returns {Promise<string>}
  */
 const getOAuthUrl = async (clinicId: string, type: IntegrationType) => {
-  const metadata = getIntegrationMetadata(type);
+  const metadata = ensureIntegrationIsAvailable(type);
 
   if (!metadata.requiresOAuth) {
     throw new ApiError(
@@ -156,6 +177,8 @@ const handleOAuthCallback = async (
   code: string,
   state: string
 ) => {
+  ensureIntegrationIsAvailable(type);
+
   // Decode state
   const stateData = JSON.parse(Buffer.from(state, "base64").toString("utf-8"));
   const { clinicId } = stateData;
@@ -354,6 +377,8 @@ const handleOAuthCallback = async (
     description: metadata.description,
     icon: metadata.icon,
     category: metadata.category,
+    availability: metadata.availability || "available",
+    comingSoonMessage: metadata.comingSoonMessage || null,
   };
 };
 
@@ -364,6 +389,20 @@ const handleOAuthCallback = async (
  * @returns {Promise<{status: string, lastChecked: Date, details?: any}>}
  */
 const checkIntegrationHealth = async (clinicId: string, type: IntegrationType) => {
+  const metadata = getIntegrationMetadata(type);
+
+  if (metadata.availability === "coming_soon") {
+    return {
+      status: IntegrationStatus.upcoming,
+      lastChecked: new Date(),
+      details: {
+        message:
+          metadata.comingSoonMessage ||
+          `${metadata.name} integration is coming soon`,
+      },
+    };
+  }
+
   const integration = await prisma.integration.findUnique({
     where: {
       clinicId_type: {
@@ -474,6 +513,8 @@ const updateIntegrationConfig = async (
   type: IntegrationType,
   configData: any
 ) => {
+  const metadata = ensureIntegrationIsAvailable(type);
+
   // Update integration
   const integration = await prisma.integration.upsert({
     where: {
@@ -496,8 +537,6 @@ const updateIntegrationConfig = async (
     },
   });
 
-  const metadata = getIntegrationMetadata(type);
-
   // Remove sensitive config data from response
   const { config: _, ...integrationWithoutConfig } = integration;
 
@@ -507,6 +546,8 @@ const updateIntegrationConfig = async (
     description: metadata.description,
     icon: metadata.icon,
     category: metadata.category,
+    availability: metadata.availability || "available",
+    comingSoonMessage: metadata.comingSoonMessage || null,
   };
 };
 
@@ -517,6 +558,8 @@ const updateIntegrationConfig = async (
  * @returns {Promise<any>}
  */
 const disconnectIntegration = async (clinicId: string, type: IntegrationType) => {
+  const metadata = ensureIntegrationIsAvailable(type);
+
   const integration = await prisma.integration.findUnique({
     where: {
       clinicId_type: {
@@ -545,8 +588,6 @@ const disconnectIntegration = async (clinicId: string, type: IntegrationType) =>
     },
   });
 
-  const metadata = getIntegrationMetadata(type);
-
   // Remove sensitive config data from response (already cleared in DB)
   const { config: _, ...integrationWithoutConfig } = updatedIntegration;
 
@@ -556,6 +597,8 @@ const disconnectIntegration = async (clinicId: string, type: IntegrationType) =>
     description: metadata.description,
     icon: metadata.icon,
     category: metadata.category,
+    availability: metadata.availability || "available",
+    comingSoonMessage: metadata.comingSoonMessage || null,
   };
 };
 
@@ -574,6 +617,8 @@ const getIntegrationSetupGuide = (type: IntegrationType) => {
     icon: metadata.icon,
     category: metadata.category,
     requiresOAuth: metadata.requiresOAuth,
+    availability: metadata.availability || "available",
+    comingSoonMessage: metadata.comingSoonMessage || null,
     requiredEnvVars: metadata.requiredEnvVars || [],
     documentation: metadata.documentation || null,
   };

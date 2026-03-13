@@ -58,11 +58,14 @@ enum IntegrationType {
   mailchimp
   zoom
   twilio
+  healthcode
+  emdr
 }
 
 enum IntegrationStatus {
   connected
   disconnected
+  upcoming
 }
 
 enum QuestionType {

@@ -23,6 +23,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
     "@google/generative-ai": "^0.24.1",
     "@mailchimp/mailchimp_marketing": "^3.0.80",
     "@prisma/adapter-pg": "7.4.0",

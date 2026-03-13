@@ -8,11 +8,6 @@ const assessmentQuestion = Joi.object().keys({
     then: Joi.required(),
     otherwise: Joi.optional(),
   }),
-  correctAnswer: Joi.string().when("type", {
-    is: Joi.valid("multiple_choice", "yes_no"),
-    then: Joi.optional(),
-    otherwise: Joi.optional(),
-  }),
   points: Joi.number().integer().min(0).optional().default(1),
   order: Joi.number().integer().min(0).optional(),
 });
