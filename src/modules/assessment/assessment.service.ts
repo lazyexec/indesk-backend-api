@@ -16,6 +16,289 @@ import { getNotificationTemplate } from "../notification/notification.templates"
 import { getClientProgress } from "./assessment.progress";
 import { analyzeAssessmentResponses } from "./assessment.ai";
 
+type StandardizedScaleKey = "phq9" | "phq2" | "gad7" | "gad2";
+
+interface StandardizedScaleDefinition {
+  key: StandardizedScaleKey;
+  title: string;
+  aliases: string[];
+  expectedQuestionCount: number;
+  optionScoreMap: Record<string, number>;
+}
+
+const STANDARDIZED_SCALE_DEFINITIONS: StandardizedScaleDefinition[] = [
+  {
+    key: "phq9",
+    title: "PHQ-9",
+    aliases: ["phq9", "phq-9", "patienthealthquestionnaire9"],
+    expectedQuestionCount: 9,
+    optionScoreMap: {
+      notatall: 0,
+      severaldays: 1,
+      morethanhalfthedays: 2,
+      nearlyeveryday: 3,
+    },
+  },
+  {
+    key: "phq2",
+    title: "PHQ-2",
+    aliases: ["phq2", "phq-2", "patienthealthquestionnaire2"],
+    expectedQuestionCount: 2,
+    optionScoreMap: {
+      notatall: 0,
+      severaldays: 1,
+      morethanhalfthedays: 2,
+      nearlyeveryday: 3,
+    },
+  },
+  {
+    key: "gad7",
+    title: "GAD-7",
+    aliases: ["gad7", "gad-7", "generalizedanxietydisorder7"],
+    expectedQuestionCount: 7,
+    optionScoreMap: {
+      notatall: 0,
+      severaldays: 1,
+      morethanhalfthedays: 2,
+      nearlyeveryday: 3,
+    },
+  },
+  {
+    key: "gad2",
+    title: "GAD-2",
+    aliases: ["gad2", "gad-2", "generalizedanxietydisorder2"],
+    expectedQuestionCount: 2,
+    optionScoreMap: {
+      notatall: 0,
+      severaldays: 1,
+      morethanhalfthedays: 2,
+      nearlyeveryday: 3,
+    },
+  },
+];
+
+const normalizeScaleText = (value: string): string =>
+  value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+const getStandardizedScaleDefinition = (
+  templateTitle: string,
+  questionCount: number
+): StandardizedScaleDefinition | null => {
+  const normalizedTitle = normalizeScaleText(templateTitle);
+
+  const definition = STANDARDIZED_SCALE_DEFINITIONS.find((scale) =>
+    scale.aliases.some((alias) => normalizedTitle.includes(alias))
+  );
+
+  if (!definition) {
+    return null;
+  }
+
+  if (questionCount !== definition.expectedQuestionCount) {
+    return null;
+  }
+
+  return definition;
+};
+
+const getStandardizedScaleSummary = (
+  scale: StandardizedScaleDefinition,
+  totalScore: number
+): { severity: string; interpretation: string; recommendations: string[] } => {
+  if (scale.key === "phq9") {
+    if (totalScore <= 4) {
+      return {
+        severity: "Minimal",
+        interpretation: "Minimal depression severity (PHQ-9: 0-4).",
+        recommendations: ["Continue routine monitoring.", "Reassess if symptoms worsen."],
+      };
+    }
+    if (totalScore <= 9) {
+      return {
+        severity: "Mild",
+        interpretation: "Mild depression severity (PHQ-9: 5-9).",
+        recommendations: ["Use watchful waiting and follow-up.", "Provide supportive interventions."],
+      };
+    }
+    if (totalScore <= 14) {
+      return {
+        severity: "Moderate",
+        interpretation: "Moderate depression severity (PHQ-9: 10-14).",
+        recommendations: ["Consider active treatment plan.", "Schedule closer clinical follow-up."],
+      };
+    }
+    if (totalScore <= 19) {
+      return {
+        severity: "Moderately Severe",
+        interpretation: "Moderately severe depression (PHQ-9: 15-19).",
+        recommendations: ["Initiate or adjust treatment promptly.", "Assess functional impairment and safety."],
+      };
+    }
+    return {
+      severity: "Severe",
+      interpretation: "Severe depression (PHQ-9: 20-27).",
+      recommendations: ["Urgent clinical intervention recommended.", "Perform immediate safety/risk assessment."],
+    };
+  }
+
+  if (scale.key === "gad7") {
+    if (totalScore <= 4) {
+      return {
+        severity: "Minimal",
+        interpretation: "Minimal anxiety severity (GAD-7: 0-4).",
+        recommendations: ["Continue routine monitoring.", "Reassess if symptoms increase."],
+      };
+    }
+    if (totalScore <= 9) {
+      return {
+        severity: "Mild",
+        interpretation: "Mild anxiety severity (GAD-7: 5-9).",
+        recommendations: ["Provide psychoeducation and follow-up.", "Monitor progression over time."],
+      };
+    }
+    if (totalScore <= 14) {
+      return {
+        severity: "Moderate",
+        interpretation: "Moderate anxiety severity (GAD-7: 10-14).",
+        recommendations: ["Consider treatment optimization.", "Increase monitoring frequency."],
+      };
+    }
+    return {
+      severity: "Severe",
+      interpretation: "Severe anxiety (GAD-7: 15-21).",
+      recommendations: ["Prompt clinical intervention recommended.", "Assess safety and functional impact."],
+    };
+  }
+
+  return {
+    severity: "Screen Positive",
+    interpretation: `${scale.title} score indicates elevated symptoms.`,
+    recommendations: ["Review findings in clinical context.", "Plan follow-up assessment."],
+  };
+};
+
+const scoreStandardizedAssessment = (
+  templateTitle: string,
+  responses: Array<{ questionId: string; answer: string }>,
+  questions: Array<{ id: string }>
+) => {
+  const scale = getStandardizedScaleDefinition(templateTitle, questions.length);
+  if (!scale) {
+    return null;
+  }
+
+  let totalScore = 0;
+  const maxScore = scale.expectedQuestionCount * 3;
+  const responsesToCreate: Array<{
+    questionId: string;
+    answer: string;
+    points: number;
+  }> = [];
+
+  for (const response of responses) {
+    const normalizedAnswer = normalizeScaleText(response.answer);
+    const score = scale.optionScoreMap[normalizedAnswer];
+
+    if (score === undefined) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `Invalid response for ${scale.title}. Allowed options: Not at all, Several days, More than half the days, Nearly every day`
+      );
+    }
+
+    totalScore += score;
+    responsesToCreate.push({
+      questionId: response.questionId,
+      answer: response.answer,
+      points: score,
+    });
+  }
+
+  const summary = getStandardizedScaleSummary(scale, totalScore);
+
+  return {
+    scale,
+    totalScore,
+    maxScore,
+    responsesToCreate,
+    summary,
+  };
+};
+
+const validateResponseSet = (
+  responses: Array<{ questionId: string; answer: string }>,
+  questions: Array<{ id: string }>
+) => {
+  if (responses.length !== questions.length) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "All questions must be answered"
+    );
+  }
+
+  const validQuestionIds = new Set(questions.map((q) => q.id));
+  const seenQuestionIds = new Set<string>();
+
+  for (const response of responses) {
+    if (!validQuestionIds.has(response.questionId)) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `Question ${response.questionId} not found`
+      );
+    }
+
+    if (seenQuestionIds.has(response.questionId)) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `Duplicate answer found for question ${response.questionId}`
+      );
+    }
+
+    seenQuestionIds.add(response.questionId);
+  }
+};
+
+const buildAiScoringResult = async (
+  templateTitle: string,
+  responses: Array<{ questionId: string; answer: string }>,
+  questionMap: Map<string, { question: string; type: string; options: any }>,
+  instanceNote?: string | null
+) => {
+  const questionsAndAnswers = responses.map((response) => {
+    const question = questionMap.get(response.questionId);
+    if (!question) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        `Question ${response.questionId} not found`
+      );
+    }
+
+    return {
+      question: question.question,
+      type: question.type,
+      answer: response.answer,
+      options: question.options,
+    };
+  });
+
+  const aiAnalysis = await analyzeAssessmentResponses(templateTitle, questionsAndAnswers);
+
+  const responsesToCreate = responses.map((response, index) => ({
+    questionId: response.questionId,
+    answer: response.answer,
+    points: aiAnalysis.responsesAnalysis[index]?.points || 0,
+  }));
+
+  const note = `${instanceNote || ""}\n\nAI Analysis:\nSeverity: ${aiAnalysis.severity}\nSummary: ${aiAnalysis.summary}\n\nRecommendations:\n${aiAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}`.trim();
+
+  return {
+    totalScore: aiAnalysis.totalScore,
+    maxScore: aiAnalysis.maxScore,
+    responsesToCreate,
+    note,
+  };
+};
+
 // Generate unique share token
 const generateShareToken = (): string => {
   return randomBytes(32).toString("hex");
@@ -288,9 +571,30 @@ const deleteAssessmentTemplate = async (userId: string, templateId: string) => {
     );
   }
 
-  await prisma.assessmentTemplate.delete({
-    where: { id: templateId },
+  const linkedInstancesCount = await prisma.assessmentInstance.count({
+    where: { templateId },
   });
+
+  if (linkedInstancesCount > 0) {
+    throw new ApiError(
+      httpStatus.BAD_REQUEST,
+      "Cannot delete this template because assessments are already assigned/completed. Please archive it instead."
+    );
+  }
+
+  try {
+    await prisma.assessmentTemplate.delete({
+      where: { id: templateId },
+    });
+  } catch (error: any) {
+    if (error?.code === "P2003") {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        "Cannot delete this template because it is referenced by assessment records."
+      );
+    }
+    throw error;
+  }
 };
 
 // Create Assessment Instance (Assign to patient)
@@ -584,40 +888,24 @@ const submitAssessment = async (
 
   // Get all questions from template
   const questions = instance.template.questions;
-  const questionMap = new Map(questions.map((q) => [q.id, q]));
-
-  // Validate all questions are answered
-  if (submitData.responses.length !== questions.length) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "All questions must be answered"
-    );
-  }
-
-  // Prepare data for AI analysis
-  const questionsAndAnswers = submitData.responses.map((response) => {
-    const question = questionMap.get(response.questionId);
-    if (!question) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        `Question ${response.questionId} not found`
-      );
-    }
-    return {
-      question: question.question,
-      type: question.type,
-      answer: response.answer,
-      options: question.options,
-    };
-  });
-
-  // Use AI to analyze responses and generate scores
-  const aiAnalysis = await analyzeAssessmentResponses(
-    instance.template.title,
-    questionsAndAnswers
+  const questionMap = new Map(
+    questions.map((q) => [
+      q.id,
+      { question: q.question, type: q.type, options: q.options },
+    ])
   );
 
-  // Map AI analysis to responses
+  validateResponseSet(submitData.responses, questions.map((q) => ({ id: q.id })));
+
+  const standardizedScoring = scoreStandardizedAssessment(
+    instance.template.title,
+    submitData.responses,
+    questions.map((q) => ({ id: q.id }))
+  );
+
+  let totalScore: number;
+  let maxScore: number;
+  let finalNote: string;
   const responsesToCreate: Array<{
     instanceId: string;
     questionId: string;
@@ -625,20 +913,39 @@ const submitAssessment = async (
     points: number;
   }> = [];
 
-  submitData.responses.forEach((response, index) => {
-    const question = questionMap.get(response.questionId);
-    if (!question) return;
+  if (standardizedScoring) {
+    totalScore = standardizedScoring.totalScore;
+    maxScore = standardizedScoring.maxScore;
 
-    const responseAnalysis = aiAnalysis.responsesAnalysis[index];
-    const points = responseAnalysis?.points || 0;
-
-    responsesToCreate.push({
-      instanceId: instance.id,
-      questionId: response.questionId,
-      answer: response.answer,
-      points: points,
+    standardizedScoring.responsesToCreate.forEach((response) => {
+      responsesToCreate.push({
+        instanceId: instance.id,
+        questionId: response.questionId,
+        answer: response.answer,
+        points: response.points,
+      });
     });
-  });
+
+    finalNote = `${instance.note || ""}\n\nStandardized Scoring (${standardizedScoring.scale.title}):\nSeverity: ${standardizedScoring.summary.severity}\nInterpretation: ${standardizedScoring.summary.interpretation}\n\nRecommendations:\n${standardizedScoring.summary.recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}`.trim();
+  } else {
+    const aiScoring = await buildAiScoringResult(
+      instance.template.title,
+      submitData.responses,
+      questionMap,
+      instance.note
+    );
+    totalScore = aiScoring.totalScore;
+    maxScore = aiScoring.maxScore;
+    aiScoring.responsesToCreate.forEach((response) => {
+      responsesToCreate.push({
+        instanceId: instance.id,
+        questionId: response.questionId,
+        answer: response.answer,
+        points: response.points,
+      });
+    });
+    finalNote = aiScoring.note;
+  }
 
   // Update instance and create responses in a transaction
   const updatedInstance = await prisma.$transaction(async (tx) => {
@@ -657,10 +964,10 @@ const submitAssessment = async (
       where: { id: instance.id },
       data: {
         status: "completed",
-        score: aiAnalysis.totalScore,
-        maxScore: aiAnalysis.maxScore,
+        score: totalScore,
+        maxScore: maxScore,
         completedAt: new Date(),
-        note: `${instance.note || ""}\n\nAI Analysis:\nSeverity: ${aiAnalysis.severity}\nSummary: ${aiAnalysis.summary}\n\nRecommendations:\n${aiAnalysis.recommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}`.trim(),
+        note: finalNote,
         ...(submittedByClinician && clinicianId ? { clinicianId } : {}),
       },
       include: {
@@ -955,15 +1262,13 @@ const submitAssessmentByClinician = async (
 
   // Get all questions from template
   const questions = instance.template.questions;
-  const questionMap = new Map(questions.map((q) => [q.id, q]));
-
-  // Validate all questions are answered
-  if (responses.length !== questions.length) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      "All questions must be answered"
-    );
-  }
+  const questionMap = new Map(
+    questions.map((q) => [
+      q.id,
+      { question: q.question, type: q.type, options: q.options, points: q.points },
+    ])
+  );
+  validateResponseSet(responses, questions.map((q) => ({ id: q.id })));
 
   // Calculate score
   let totalScore = 0;
@@ -975,26 +1280,44 @@ const submitAssessmentByClinician = async (
     points: number;
   }> = [];
 
-  for (const response of responses) {
-    const question = questionMap.get(response.questionId);
-    if (!question) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        `Question ${response.questionId} not found`
-      );
-    }
+  const standardizedScoring = scoreStandardizedAssessment(
+    instance.template.title,
+    responses,
+    questions.map((q) => ({ id: q.id }))
+  );
 
-    maxScore += question.points;
+  if (standardizedScoring) {
+    totalScore = standardizedScoring.totalScore;
+    maxScore = standardizedScoring.maxScore;
 
-    // Give points for any answer (completion-based scoring)
-    const pointsEarned = question.points;
-    totalScore += pointsEarned;
-
-    responsesToCreate.push({
-      instanceId: instance.id,
-      questionId: response.questionId,
-      answer: response.answer,
-      points: pointsEarned,
+    standardizedScoring.responsesToCreate.forEach((response) => {
+      responsesToCreate.push({
+        instanceId: instance.id,
+        questionId: response.questionId,
+        answer: response.answer,
+        points: response.points,
+      });
+    });
+  } else {
+    const aiScoring = await buildAiScoringResult(
+      instance.template.title,
+      responses,
+      new Map(
+        questions.map((q) => [
+          q.id,
+          { question: q.question, type: q.type, options: q.options },
+        ])
+      )
+    );
+    totalScore = aiScoring.totalScore;
+    maxScore = aiScoring.maxScore;
+    aiScoring.responsesToCreate.forEach((response) => {
+      responsesToCreate.push({
+        instanceId: instance.id,
+        questionId: response.questionId,
+        answer: response.answer,
+        points: response.points,
+      });
     });
   }
 
